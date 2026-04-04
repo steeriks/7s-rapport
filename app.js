@@ -500,7 +500,7 @@ function initMapPicker() {
     if (!_mapSelLng) return;
     window.open(`https://maps.apple.com/?ll=${_mapSelLng.lat},${_mapSelLng.lng}&q=Vald+position`, '_blank');
   });
-  document.getElementById('mapOpenTopoBtn').addEventListener('click', async () => {
+  document.getElementById('mapOpenTopoBtn').addEventListener('click', () => {
     if (!_mapSelLng) return;
     const { lat, lng } = _mapSelLng;
 
@@ -512,20 +512,8 @@ function initMapPicker() {
   </wpt>
 </gpx>`;
 
-    // Try Web Share API with text/xml (GPX is XML; this MIME type is what
-    // iOS uses to match apps that handle GPX files in the share sheet).
-    const fileXml = new File([gpx], 'observation.gpx', { type: 'text/xml' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [fileXml] })) {
-      try {
-        await navigator.share({ title: 'Observation', files: [fileXml] });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return;  // user cancelled — done
-      }
-    }
-
-    // Fallback: trigger a file download. On iOS Safari the downloaded .gpx
-    // file gets an "Open in…" / "Copy to Topo GPS" button in the download bar.
+    // Ladda ner GPX-filen. iOS Safari visar en nedladdningsnotis —
+    // tryck på den och välj "Öppna med Topo GPS" för att importera punkten.
     const blob = new Blob([gpx], { type: 'application/gpx+xml' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -535,7 +523,7 @@ function initMapPicker() {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    showToast('GPX nedladdad — öppna med Topo GPS');
+    showToast('Öppna nedladdningen och välj Topo GPS');
   });
 
   // When coordinate system changes while map is open, update preview
