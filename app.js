@@ -871,10 +871,21 @@ function showSendPanel(report) {
     }
   };
 
-  document.getElementById('sendEmailBtn').onclick = () => {
-    const s = getSettings();
+  document.getElementById('sendEmailBtn').onclick = async () => {
+    const s       = getSettings();
     const subject = `7S Rapport – tidsnr ${toTidsnummer(report.stund)} – ${report.sagesman || ''}`;
-    openMailto(s.centralEmail || '', subject, text);
+    const files   = await buildShareFiles(report);
+
+    if (files.length > 0 && navigator.share) {
+      // mailto: stöder inte bifogade filer. Öppna delar-menyn med filer —
+      // välj din e-postklient (Mail, Gmail m.fl.) för att bifoga bilderna.
+      try {
+        await navigator.share({ title: subject, text, files });
+      } catch { /* user cancelled */ }
+    } else {
+      // Inga filer — öppna e-postklienten direkt med förifylld mottagare
+      openMailto(s.centralEmail || '', subject, text);
+    }
   };
 
   document.getElementById('downloadPdfBtn').onclick = async () => {
