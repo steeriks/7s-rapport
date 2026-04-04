@@ -153,6 +153,15 @@ body {
   justify-content: center;
 }
 
+.icon-btn.help-btn {
+  width: 32px;
+  height: 44px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: #f0f0ec;
+}
+
 /* ===== BUTTONS ===== */
 .btn {
   display: block;

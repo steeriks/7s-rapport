@@ -272,23 +272,9 @@ function initForm() {
     updateTidsnummerBadge(e.target.value);
   });
 
-  // GPS button — labels with selected coordinate system
-  document.getElementById('gpsBtn').addEventListener('click', async () => {
+  // GPS — anropar direkt utan föregående popups som kan störa iOS-dialogen
+  document.getElementById('gpsBtn').addEventListener('click', () => {
     if (!navigator.geolocation) { showToast('GPS ej tillgänglig på denna enhet'); return; }
-
-    // Förhandskolla tillstånd med Permissions API (iOS 16+, Android Chrome).
-    // Om redan nekad → visa hjälp direkt utan att försöka hämta position.
-    // Om "prompt" → iOS kommer att visa sin egen dialog; vänta tyst.
-    if (navigator.permissions) {
-      try {
-        const perm = await navigator.permissions.query({ name: 'geolocation' });
-        if (perm.state === 'denied') {
-          showGpsPermissionHelp();
-          return;
-        }
-      } catch { /* Permissions API ej stödd — fortsätt normalt */ }
-    }
-
     showToast('Hämtar position…');
     navigator.geolocation.getCurrentPosition(
       pos => {
@@ -300,9 +286,7 @@ function initForm() {
       },
       err => {
         if (err.code === 1) {
-          // Fördröj hjälprutan så att iOS-tillståndsdialogen hinner stängas
-          // innan vår modal visas (undviker att de visas samtidigt).
-          setTimeout(() => showGpsPermissionHelp(), 400);
+          showToast('Platstillstånd nekades — tryck ? för hjälp');
         } else if (err.code === 2) {
           showToast('Position ej tillgänglig — kontrollera att GPS är påslaget');
         } else {
@@ -311,6 +295,11 @@ function initForm() {
       },
       { enableHighAccuracy: true, timeout: 15000 }
     );
+  });
+
+  // ?-knapp visar alltid hjälpen manuellt, stör aldrig GPS-anropet
+  document.getElementById('gpshelpBtn').addEventListener('click', () => {
+    showGpsPermissionHelp();
   });
 
   // Submit
