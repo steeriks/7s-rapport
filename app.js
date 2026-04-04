@@ -504,8 +504,6 @@ function initMapPicker() {
     if (!_mapSelLng) return;
     const { lat, lng } = _mapSelLng;
 
-    // Topo GPS imports GPX files via the iOS share sheet.
-    // We generate a minimal GPX waypoint and share it as a file.
     const gpx = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="7S Rapport" xmlns="http://www.topografix.com/GPX/1/1">
   <wpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">
@@ -513,20 +511,31 @@ function initMapPicker() {
     <desc>${lat.toFixed(5)}, ${lng.toFixed(5)}</desc>
   </wpt>
 </gpx>`;
-    const file = new File([gpx], 'observation.gpx', { type: 'application/gpx+xml' });
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    // Try Web Share API with text/xml (GPX is XML; this MIME type is what
+    // iOS uses to match apps that handle GPX files in the share sheet).
+    const fileXml = new File([gpx], 'observation.gpx', { type: 'text/xml' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [fileXml] })) {
       try {
-        await navigator.share({ title: 'Observation', files: [file] });
+        await navigator.share({ title: 'Observation', files: [fileXml] });
+        return;
       } catch (err) {
-        if (err.name !== 'AbortError') showToast('Delning misslyckades');
+        if (err.name === 'AbortError') return;  // user cancelled — done
       }
-    } else {
-      // Fallback: copy WGS84 decimal so user can paste into Topo GPS search
-      const wgs = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-      try { await navigator.clipboard.writeText(wgs); } catch {}
-      showToast(`Kopierat: ${wgs} — klistra in i Topo GPS`);
     }
+
+    // Fallback: trigger a file download. On iOS Safari the downloaded .gpx
+    // file gets an "Open in…" / "Copy to Topo GPS" button in the download bar.
+    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'observation.gpx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast('GPX nedladdad — öppna med Topo GPS');
   });
 
   // When coordinate system changes while map is open, update preview
