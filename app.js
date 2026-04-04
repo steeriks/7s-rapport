@@ -502,7 +502,21 @@ function initMapPicker() {
   });
   document.getElementById('mapOpenTopoBtn').addEventListener('click', () => {
     if (!_mapSelLng) return;
-    window.open(`https://www.topogps.com/iphone/?lat=${_mapSelLng.lat}&long=${_mapSelLng.lng}`, '_blank');
+    const { lat, lng } = _mapSelLng;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      // Try to open Topo GPS app directly via iOS URL scheme.
+      // If app is installed this opens it; if not, iOS shows an error.
+      // We also show a toast with the WGS84 coordinate so the user can
+      // copy and paste it into Topo GPS's search field as a fallback.
+      window.location.href = `topogps://?lat=${lat.toFixed(6)}&lon=${lng.toFixed(6)}`;
+      setTimeout(() => {
+        const wgs = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        showToast(`Topo GPS: ${wgs}`);
+      }, 800);
+    } else {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+    }
   });
 
   // When coordinate system changes while map is open, update preview

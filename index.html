@@ -48,10 +48,11 @@
           <label for="stalle">2. Ställe</label>
           <div class="input-row">
             <input type="text" id="stalle" name="stalle" placeholder="Koordinater" required>
-            <button type="button" class="icon-btn" id="gpsBtn" title="Hämta GPS-position">📍</button>
-            <button type="button" class="icon-btn" id="mapPickerBtn" title="Välj på karta">🗺️</button>
+            <button type="button" class="icon-btn" id="gpsBtn" title="Fyll i din egen position (GPS)">📍</button>
+            <button type="button" class="icon-btn" id="mapPickerBtn" title="Välj observationsposition på karta">🗺️</button>
             <button type="button" class="icon-btn help-btn" id="gpshelpBtn" title="Hjälp med platstillstånd">?</button>
           </div>
+          <p class="coord-hint">📍 = din position &nbsp;·&nbsp; 🗺️ = välj observationsposition på karta</p>
           <div class="coord-row">
             <label class="coord-label">Koordinatsystem:</label>
             <select id="stalleSystem" name="stalleSystem" class="coord-select">
@@ -209,13 +210,16 @@
   <div id="mapModal" class="map-modal-overlay hidden">
     <div class="map-modal">
       <div class="map-modal-header">
-        <h3>Välj position på karta</h3>
+        <div>
+          <h3>Välj observationsposition</h3>
+          <p class="map-modal-subtitle">Tryck på kartan för att markera fiendens/objektets position</p>
+        </div>
         <button type="button" class="map-close-btn" id="mapModalClose">✕</button>
       </div>
       <div id="mapContainer"></div>
       <div class="map-coord-preview" id="mapCoordPreview">Tryck på kartan för att välja position</div>
       <div class="map-modal-actions">
-        <button type="button" class="btn secondary map-action-btn" id="mapGpsBtn">📍 GPS</button>
+        <button type="button" class="btn secondary map-action-btn" id="mapGpsBtn" title="Centrera kartan på din egen position">📍 Min position</button>
         <div class="map-open-btns">
           <button type="button" class="btn ghost map-action-btn" id="mapOpenGoogleBtn">Google Maps</button>
           <button type="button" class="btn ghost map-action-btn" id="mapOpenAppleBtn">Apple Maps</button>

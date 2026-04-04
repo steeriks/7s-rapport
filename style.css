@@ -329,6 +329,14 @@ body {
   letter-spacing: 1px;
 }
 
+/* ===== COORD HINT (below GPS/map buttons) ===== */
+.coord-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  margin-bottom: 0;
+}
+
 /* ===== COORDINATE SYSTEM SELECTOR ===== */
 .coord-row {
   display: flex;
@@ -498,7 +506,7 @@ body {
 
 .map-modal-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 14px 16px 10px;
   border-bottom: 1px solid var(--green-pale);
@@ -509,7 +517,14 @@ body {
   color: var(--green-dark);
   font-size: 16px;
   font-weight: 700;
+  margin: 0 0 2px;
+}
+
+.map-modal-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
   margin: 0;
+  line-height: 1.3;
 }
 
 .map-close-btn {
