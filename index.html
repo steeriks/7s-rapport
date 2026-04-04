@@ -13,8 +13,6 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mgrs@1.0.0/dist/mgrs.js"></script>
 </head>
 <body>
 
@@ -55,8 +53,8 @@
           <div class="coord-row">
             <label class="coord-label">Koordinatsystem:</label>
             <select id="stalleSystem" name="stalleSystem" class="coord-select">
-              <option value="MGRS">MGRS (militär standard)</option>
-              <option value="WGS84" selected>WGS84 decimal</option>
+              <option value="MGRS" selected>MGRS (militär standard)</option>
+              <option value="WGS84">WGS84 decimal</option>
               <option value="WGS84 DDM">WGS84 DDM</option>
               <option value="SWEREF99">SWEREF99 TM</option>
               <option value="RT90">RT90</option>

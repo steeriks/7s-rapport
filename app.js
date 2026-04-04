@@ -37,59 +37,153 @@ function deleteReport(id) {
 }
 
 // ============================================================
-// KOORDINATKONVERTERING
-// GPS returnerar alltid WGS84 decimal; detta omvandlar till valt system.
+// KOORDINATKONVERTERING — ren JavaScript, inga externa beroenden
+// GPS ger alltid WGS84 decimal; konverteras här till valt system.
+// Referensvärden från SoldF 2001: 59.326489, 18.070179
+//   MGRS:     34VCL3330680074
+//   DDM:      59°19.589'N 18°4.211'E
+//   SWEREF99: 6580434, 674676
+//   RT90:     6580599, 1628933
 // ============================================================
 
-function initProj4() {
-  if (!window.proj4) return;
-  proj4.defs('SWEREF99TM',
-    '+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
-  proj4.defs('RT90',
-    '+proj=tmerc +lat_0=0 +lon_0=15.80827777777778 +k=1.00000561024 ' +
-    '+x_0=1500000 +y_0=0 +ellps=bessel ' +
-    '+towgs84=414.1,41.3,603.1,-0.855,2.141,-7.023,0 +units=m +no_defs');
+const _DEG = Math.PI / 180;
+const _AS  = Math.PI / (180 * 3600);   // bågsekunder → radianer
+
+// Ellipsoidkonstanter
+const _WGS84  = { a: 6378137.0,    f: 1 / 298.257223563 };
+const _BESSEL = { a: 6377397.155,  f: 1 / 299.1528128   };
+function _e2(ell) { return 2 * ell.f - ell.f * ell.f; }
+
+// Transverse Mercator-projektion (Gauss-Krüger)
+function _tm(latDeg, lonDeg, ell, lon0Deg, k0, FE, FN) {
+  const e2 = _e2(ell);
+  const phi  = latDeg * _DEG;
+  const dlam = (lonDeg - lon0Deg) * _DEG;
+  const sinp = Math.sin(phi), cosp = Math.cos(phi), tanp = Math.tan(phi);
+  const N = ell.a / Math.sqrt(1 - e2 * sinp * sinp);
+  const T = tanp * tanp;
+  const C = (e2 / (1 - e2)) * cosp * cosp;
+  const A = cosp * dlam;
+  const e4 = e2 * e2, e6 = e4 * e2;
+  const M = ell.a * (
+    (1 - e2/4 - 3*e4/64 - 5*e6/256)   * phi
+    - (3*e2/8 + 3*e4/32 + 45*e6/1024) * Math.sin(2*phi)
+    + (15*e4/256 + 45*e6/1024)         * Math.sin(4*phi)
+    - (35*e6/3072)                     * Math.sin(6*phi)
+  );
+  const E = FE + k0 * N * (
+    A + (1 - T + C) * A**3 / 6
+    + (5 - 18*T + T*T + 72*C - 58*e2/(1-e2)) * A**5 / 120
+  );
+  const Nv = FN + k0 * (
+    M + N * tanp * (
+      A*A / 2
+      + (5 - T + 9*C + 4*C*C) * A**4 / 24
+      + (61 - 58*T + T*T + 600*C - 330*e2/(1-e2)) * A**6 / 720
+    )
+  );
+  return [E, Nv];
 }
 
-// WGS84 decimal → grader och decimalminuter  ex: 59°19.589'N 18°4.211'E
-function toWGS84DDM(lat, lon) {
-  function fmt(deg) {
-    const d = Math.floor(Math.abs(deg));
-    const m = ((Math.abs(deg) - d) * 60).toFixed(3);
-    return `${d}°${m}'`;
+// Geodetiska koordinater → geocentriska XYZ
+function _toXYZ(latDeg, lonDeg, ell) {
+  const e2  = _e2(ell);
+  const phi = latDeg * _DEG, lam = lonDeg * _DEG;
+  const N   = ell.a / Math.sqrt(1 - e2 * Math.sin(phi)**2);
+  return [
+    N * Math.cos(phi) * Math.cos(lam),
+    N * Math.cos(phi) * Math.sin(lam),
+    N * (1 - e2)      * Math.sin(phi),
+  ];
+}
+
+// Geocentriska XYZ → geodetiska koordinater (iterativt)
+function _fromXYZ(xyz, ell) {
+  const [X, Y, Z] = xyz;
+  const e2 = _e2(ell);
+  const p  = Math.sqrt(X*X + Y*Y);
+  let phi  = Math.atan2(Z, p * (1 - e2));
+  for (let i = 0; i < 10; i++) {
+    const N = ell.a / Math.sqrt(1 - e2 * Math.sin(phi)**2);
+    phi = Math.atan2(Z + e2 * N * Math.sin(phi), p);
   }
+  return [phi / _DEG, Math.atan2(Y, X) / _DEG];
+}
+
+// Helmert-transformation (position vector-konvention, inverterad WGS84→lokal)
+// h = [tx, ty, tz, rx_as, ry_as, rz_as]  (towgs84-parametrar lokal→WGS84)
+function _helmertInv([X, Y, Z], [tx, ty, tz, rx_as, ry_as, rz_as]) {
+  const rx = rx_as * _AS, ry = ry_as * _AS, rz = rz_as * _AS;
+  return [
+    X - tx + rz * Y - ry * Z,
+    Y - ty - rz * X + rx * Z,
+    Z - tz + ry * X - rx * Y,
+  ];
+}
+
+// SWEREF99 TM (zon 33, centralmeridian 15°, GRS80 ≈ WGS84)
+function _toSWEREF99(lat, lon) {
+  const [E, N] = _tm(lat, lon, _WGS84, 15, 0.9996, 500000, 0);
+  return `${Math.round(N)}, ${Math.round(E)}`;
+}
+
+// RT90 2.5 gon V (Bessels ellipsoid, Helmert-transformation)
+const _RT90_H = [414.1, 41.3, 603.1, -0.855, 2.141, -7.023];
+function _toRT90(lat, lon) {
+  const xyz    = _toXYZ(lat, lon, _WGS84);
+  const xyz_b  = _helmertInv(xyz, _RT90_H);
+  const [la, lo] = _fromXYZ(xyz_b, _BESSEL);
+  // Gauss-Krüger på Bessel: centralmeridian 15°48'29.8" = 15.80827778°
+  const [E, N] = _tm(la, lo, _BESSEL, 15.80827778, 1.00000561024, 1500000, 0);
+  return `${Math.round(N)}, ${Math.round(E)}`;
+}
+
+// WGS84 DDM  ex: 59°19.589'N 18°4.211'E
+function _toDDM(lat, lon) {
+  const fmt = v => {
+    const d = Math.floor(Math.abs(v));
+    const m = ((Math.abs(v) - d) * 60).toFixed(3);
+    return `${d}°${m}'`;
+  };
   return `${fmt(lat)}${lat >= 0 ? 'N' : 'S'} ${fmt(lon)}${lon >= 0 ? 'E' : 'W'}`;
 }
 
-// Konverterar WGS84 decimal till valt koordinatsystem.
-// Returnerar en sträng redo att visas i fältet.
+// MGRS
+const _MGRS_COL  = ['ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'];
+const _MGRS_RODD = 'ABCDEFGHJKLMNPQRSTUV';
+const _MGRS_REVEN= 'FGHJKLMNPQRSTUVABCDE';
+const _MGRS_BAND = 'CDEFGHJKLMNPQRSTUVWX';
+
+function _toMGRS(lat, lon, prec = 5) {
+  if (lat < -80 || lat > 84) return null;
+  const band = _MGRS_BAND[Math.min(Math.floor((lat + 80) / 8), 19)];
+  const zone = Math.floor((lon + 180) / 6) + 1;
+  const lon0 = (zone - 1) * 6 - 180 + 3;
+  const FN   = lat < 0 ? 10000000 : 0;
+  const [E, N] = _tm(lat, lon, _WGS84, lon0, 0.9996, 500000, FN);
+  const colIdx = Math.floor(E / 100000) - 1;
+  const rowIdx = Math.floor(N / 100000) % 20;
+  const col = _MGRS_COL[(zone - 1) % 3][colIdx];
+  const row = (zone % 2 === 0 ? _MGRS_REVEN : _MGRS_RODD)[rowIdx];
+  if (!col || !row) return null;
+  const div  = Math.pow(10, 5 - prec);
+  const eStr = String(Math.floor((E % 100000) / div)).padStart(prec, '0');
+  const nStr = String(Math.floor((N % 100000) / div)).padStart(prec, '0');
+  return `${zone}${band}${col}${row}${eStr}${nStr}`;
+}
+
+// Gemensam konverteringsfunktion — anropas från GPS-hanteraren
 function convertCoords(lat, lon, system) {
   try {
     switch (system) {
-      case 'MGRS': {
-        if (!window.mgrs) throw new Error('mgrs library not loaded');
-        // mgrs.forward([lon, lat], precision) – precision 5 = 1 m
-        return window.mgrs.forward([lon, lat], 5);
-      }
-      case 'WGS84 DDM':
-        return toWGS84DDM(lat, lon);
-      case 'SWEREF99': {
-        if (!window.proj4) throw new Error('proj4 not loaded');
-        const [e, n] = proj4('WGS84', 'SWEREF99TM', [lon, lat]);
-        // Svensk notation: northing, easting (hela meter)
-        return `${Math.round(n)}, ${Math.round(e)}`;
-      }
-      case 'RT90': {
-        if (!window.proj4) throw new Error('proj4 not loaded');
-        const [e, n] = proj4('WGS84', 'RT90', [lon, lat]);
-        return `${Math.round(n)}, ${Math.round(e)}`;
-      }
-      default: // WGS84 decimal
-        return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      case 'MGRS':      return _toMGRS(lat, lon, 5) || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      case 'WGS84 DDM': return _toDDM(lat, lon);
+      case 'SWEREF99':  return _toSWEREF99(lat, lon);
+      case 'RT90':      return _toRT90(lat, lon);
+      default:          return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
     }
   } catch (err) {
-    console.error('Koordinatkonvertering misslyckades:', err);
-    // Fallback: WGS84 med tydlig markering
+    console.error('Koordinatkonverteringsfel:', err);
     return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
   }
 }
@@ -733,7 +827,6 @@ function registerSW() {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   registerSW();
-  initProj4();
   initTabs();
   initForm();
   initDailyBtn();
