@@ -274,26 +274,26 @@ function initForm() {
 
   // GPS button — labels with selected coordinate system
   document.getElementById('gpsBtn').addEventListener('click', () => {
-    if (!navigator.geolocation) { showToast('GPS ej tillgänglig'); return; }
+    if (!navigator.geolocation) { showToast('GPS ej tillgänglig på denna enhet'); return; }
     showToast('Hämtar position…');
     navigator.geolocation.getCurrentPosition(
       pos => {
         const lat = pos.coords.latitude.toFixed(5);
         const lon = pos.coords.longitude.toFixed(5);
         document.getElementById('stalle').value = `${lat}, ${lon}`;
-        // Force WGS84 decimal in selector since that's what the browser provides
         document.getElementById('stalleSystem').value = 'WGS84';
         showToast('✓ GPS-position hämtad (WGS84)');
       },
       err => {
-        const msgs = {
-          1: 'Åtkomst till plats nekad',
-          2: 'Position ej tillgänglig',
-          3: 'Tidsgräns för GPS',
-        };
-        showToast(msgs[err.code] || 'Kunde inte hämta GPS');
+        if (err.code === 1) {
+          showGpsPermissionHelp();
+        } else if (err.code === 2) {
+          showToast('Position ej tillgänglig — kontrollera att GPS är påslaget');
+        } else {
+          showToast('GPS-timeout — försök igen utomhus');
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 15000 }
     );
   });
 
@@ -562,6 +562,60 @@ function checkDailyReminder() {
       }
     }
   }
+}
+
+// ============================================================
+// GPS PERMISSION HELP
+// ============================================================
+function showGpsPermissionHelp() {
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isPWA = window.navigator.standalone === true;
+
+  let instructions;
+  if (isIOS && isPWA) {
+    instructions = `
+      <strong>Appen saknar tillstånd att använda din plats.</strong><br><br>
+      Gör så här på iPhone/iPad:<br>
+      <ol style="margin:10px 0 0 18px;line-height:1.8">
+        <li>Öppna <strong>Inställningar</strong></li>
+        <li>Scrolla ned och tryck på <strong>Integritet och säkerhet</strong></li>
+        <li>Tryck på <strong>Platstjänster</strong></li>
+        <li>Hitta <strong>7S Rapport</strong> (eller Safari) i listan</li>
+        <li>Välj <strong>Vid användning av appen</strong></li>
+      </ol><br>
+      Återvänd sedan till appen och tryck 📍 igen.`;
+  } else if (isIOS) {
+    instructions = `
+      <strong>Safari blockerar platsåtkomst.</strong><br><br>
+      Gör så här:<br>
+      <ol style="margin:10px 0 0 18px;line-height:1.8">
+        <li>Öppna <strong>Inställningar</strong></li>
+        <li>Tryck på <strong>Safari</strong></li>
+        <li>Tryck på <strong>Plats</strong></li>
+        <li>Välj <strong>Fråga</strong> eller <strong>Tillåt</strong></li>
+      </ol><br>
+      Återvänd till Safari och ladda om sidan, tryck sedan 📍 igen.`;
+  } else {
+    instructions = `
+      <strong>Platstillstånd nekades.</strong><br><br>
+      Tryck på låsikonen (🔒) i adressfältet och ändra
+      <em>Plats</em> till <strong>Tillåt</strong>, ladda sedan om sidan.`;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>📍 Platstillstånd krävs</h3>
+      <div style="font-size:14px;line-height:1.6;color:#333">${instructions}</div>
+      <div class="btn-group" style="margin-top:18px">
+        <button class="btn primary" id="gpsHelpClose">Förstått</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  overlay.querySelector('#gpsHelpClose').onclick = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 // ============================================================
