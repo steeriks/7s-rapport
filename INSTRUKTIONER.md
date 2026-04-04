@@ -3,6 +3,9 @@
 
 ### Steg 1 – Lägg till på hemskärmen
 
+https://steeriks.github.io/7s-rapport
+
+
 **iPhone:**
 1. Öppna länken i Safari (inte Chrome)
 2. Tryck på dela-knappen (rutan med pil upp)
