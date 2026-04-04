@@ -1,0 +1,24 @@
+{
+  "name": "7S Rapport",
+  "short_name": "7S",
+  "description": "Incidentrapportering med 7S-mall",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f0e0",
+  "theme_color": "#2d4a1e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

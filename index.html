@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="7S Rapport">
+  <meta name="theme-color" content="#2d4a1e">
+  <title>7S Rapport</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+</head>
+<body>
+
+  <!-- TAB BAR -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="form">Ny Rapport</button>
+    <button class="tab" data-tab="reports">Sparade</button>
+    <button class="tab" data-tab="settings">Inställningar</button>
+  </nav>
+
+  <!-- ===== TAB: NY RAPPORT ===== -->
+  <section id="tab-form" class="tab-content active">
+    <div class="card">
+      <h2>7S Rapport</h2>
+      <form id="reportForm">
+
+        <!-- 1. STUND -->
+        <div class="field">
+          <div class="label-row">
+            <label for="stund">1. Stund</label>
+            <span class="tidsnummer-badge" id="tidsnummerBadge">––––––</span>
+          </div>
+          <input type="datetime-local" id="stund" name="stund" required>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Ange <strong>tidsnummer</strong> — sex siffror: dag, timme, minut. Onsdag 4 mars kl 21:15 = <strong>042115</strong>. Ange alltid <em>observationstidpunkten</em>, inte när du rapporterar. Vid andrahandsuppgift: ange tydligt att tiden är osäker.</p>
+          </details>
+        </div>
+
+        <!-- 2. STÄLLE -->
+        <div class="field">
+          <label for="stalle">2. Ställe</label>
+          <div class="input-row">
+            <input type="text" id="stalle" name="stalle" placeholder="Koordinater" required>
+            <button type="button" class="icon-btn" id="gpsBtn" title="Hämta GPS-position">📍</button>
+          </div>
+          <div class="coord-row">
+            <label class="coord-label">Koordinatsystem:</label>
+            <select id="stalleSystem" name="stalleSystem" class="coord-select">
+              <option value="MGRS">MGRS (militär standard)</option>
+              <option value="WGS84" selected>WGS84 decimal</option>
+              <option value="WGS84 DDM">WGS84 DDM</option>
+              <option value="SWEREF99">SWEREF99 TM</option>
+              <option value="RT90">RT90</option>
+            </select>
+          </div>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Militärt standard är <strong>MGRS</strong>. Ange alltid vilket koordinatsystem du använder om det kan råda tveksamhet. Använd <strong>aldrig UPK</strong> (utgångspunkter på kartan) för att ange motståndarens position — det kan röja det egna UPK-systemet.</p>
+          </details>
+        </div>
+
+        <!-- 3. STYRKA -->
+        <div class="field">
+          <label for="styrka">3. Styrka</label>
+          <input type="text" id="styrka" name="styrka" placeholder="T.ex. 3 personer, 2 fordon" required>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Sträva efter exakt antal. Ange <strong>"minst X"</strong> om du misstänker att det är fler än du kan bekräfta. Vid fotburet infanteri i terräng kan du ange <em>"bedömt i plutons storlek"</em> för att indikera storlek utan att ge sken av exakthet.</p>
+          </details>
+        </div>
+
+        <!-- 4. SLAG -->
+        <div class="field">
+          <label for="slag">4. Slag</label>
+          <textarea id="slag" name="slag" rows="3" placeholder="Beskriv typ av fiender/objekt i detalj. T.ex: bandgående pansarfordon, litet kanontorn, 6 bärhjul, antennmatning bak." required></textarea>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Ange slag så detaljerat som möjligt. För <strong>fordon</strong>: hjul eller band, antal axlar/bärhjul, torn (stort/litet), beväpning, om det bär trupp, bepansring, synliga skador. Om du inte kan identifiera fordonstypen exakt — beskriv vad du ser. Gissa inte vad du inte är säker på.</p>
+          </details>
+        </div>
+
+        <!-- 5. SYSSELSÄTTNING -->
+        <div class="field">
+          <label for="sysselsattning">5. Sysselsättning</label>
+          <textarea id="sysselsattning" name="sysselsattning" rows="3" placeholder="Vad gjorde de? T.ex: transport norrut längs E4, stillastående och väntade, tankning från tankbil, förberedde försvarställning."></textarea>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Var dom under <em>transport</em>, stod still och väntade, fyllde på <em>förbrukning</em> (ammunition/drivmedel), genomförde <em>reparationer</em>, eller förberedde <em>försvar</em>? All information bidrar till att underrättelsebefälet förstår vad som är i görningen.</p>
+          </details>
+        </div>
+
+        <!-- 6. SYMBOL -->
+        <div class="field">
+          <label for="symbol">6. Symbol</label>
+          <textarea id="symbol" name="symbol" rows="3" placeholder="Flaggor, markeringar, registreringsnummer, unik utrustning, skador. T.ex: blå-vita runda markeringar på sidan, registr. ABC 123."></textarea>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Symboler hjälper underrättelsepersonal att skilja förband åt och identifiera rörelsemönster. Rapportera <strong>allt unikt</strong>: flaggor, markeringar, registreringsnummer, avvikande utrustning, synliga skador. Samma skada på fordon i flera rapporter kan bekräfta att det är samma enhet.</p>
+          </details>
+        </div>
+
+        <!-- 7. SAGESMAN -->
+        <div class="field">
+          <label for="sagesman">7. Sagesman</label>
+          <input type="text" id="sagesman" name="sagesman" placeholder="Namn eller enhetsbeteckning" required>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Ange individ eller enhetsbeteckning. Uppgiften är viktig om det finns <strong>följdfrågor</strong> — t.ex. för att validera tolkningar eller koppla rapporten till andra observationer. Tydlig sagesman möjliggör att staben kan kontakta den som gjort observationen.</p>
+          </details>
+        </div>
+
+        <!-- 8. SEDAN (vid behov) -->
+        <div class="field">
+          <div class="label-row">
+            <label for="sedan">8. Sedan <span class="optional-tag">vid behov</span></label>
+          </div>
+          <textarea id="sedan" name="sedan" rows="2" placeholder="Vad gör ni härnäst? T.ex: återgår till patrullbas, fortsätter observation, förflyttar sig till sektor B."></textarea>
+          <details class="field-tip">
+            <summary>Tips (SoldF 2001)</summary>
+            <p>Vad <em>rapporterande enhet</em> gör efter observationen. Viktigt för överordnad chef och underrättelsebefäl — om enheten inte hör av sig igen ger "Sedan" vägledning om vad som kan ha skett och var.</p>
+          </details>
+        </div>
+
+        <div class="btn-group">
+          <button type="submit" class="btn primary">Spara rapport</button>
+          <button type="button" class="btn secondary" id="clearBtn">Rensa</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- SEND PANEL — visas efter att rapporten sparats -->
+    <div id="sendPanel" class="card hidden">
+      <h3>Rapport sparad — skicka nu</h3>
+      <div id="previewText" class="preview-box"></div>
+      <div class="btn-group">
+        <button class="btn signal" id="copySignalBtn">📋 Kopiera till Signal</button>
+        <button class="btn share" id="shareBtn">📤 Dela</button>
+        <button class="btn email" id="sendEmailBtn">📧 Skicka som e-post</button>
+        <button class="btn pdf" id="downloadPdfBtn">⬇️ Ladda ner PDF</button>
+      </div>
+      <button class="btn ghost" id="newReportBtn">+ Ny rapport</button>
+    </div>
+  </section>
+
+  <!-- ===== TAB: SPARADE ===== -->
+  <section id="tab-reports" class="tab-content">
+    <div class="card">
+      <div class="section-header">
+        <h2>Sparade rapporter</h2>
+        <button class="btn small primary" id="sendDailyBtn">📧 Dagssammanfattning</button>
+      </div>
+      <div id="reportsList">
+        <p class="empty-msg">Inga sparade rapporter.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== TAB: INSTÄLLNINGAR ===== -->
+  <section id="tab-settings" class="tab-content">
+    <div class="card">
+      <h2>Inställningar</h2>
+
+      <div class="field">
+        <label for="settingName">Ditt namn / enhetsbeteckning (Sagesman)</label>
+        <input type="text" id="settingName" placeholder="Förnamn Efternamn eller Enhet">
+      </div>
+
+      <div class="field">
+        <label for="settingEmail">Central e-postadress (Stab/högre chef)</label>
+        <input type="email" id="settingEmail" placeholder="hq@example.com">
+      </div>
+
+      <details class="emailjs-setup">
+        <summary>E-postkonfiguration (EmailJS) ▾</summary>
+        <p class="hint-block">För att skicka e-post direkt från appen behöver du ett gratis konto på <strong>emailjs.com</strong>. Fyll i uppgifterna nedan efter att du skapat kontot.</p>
+        <div class="field">
+          <label for="ejsPublicKey">EmailJS Public Key</label>
+          <input type="text" id="ejsPublicKey" placeholder="XXXX...">
+        </div>
+        <div class="field">
+          <label for="ejsServiceId">Service ID</label>
+          <input type="text" id="ejsServiceId" placeholder="service_...">
+        </div>
+        <div class="field">
+          <label for="ejsTemplateId">Template ID</label>
+          <input type="text" id="ejsTemplateId" placeholder="template_...">
+        </div>
+      </details>
+
+      <div class="field">
+        <label for="dailyTime">Påminnelse daglig rapport</label>
+        <input type="time" id="dailyTime" value="20:00">
+        <p class="hint-text">Du får en notis vid denna tid om att skicka daglig sammanfattning.</p>
+      </div>
+
+      <button class="btn primary" id="saveSettingsBtn">Spara inställningar</button>
+      <p id="settingsSaved" class="success-msg hidden">✓ Inställningar sparade</p>
+
+      <div class="danger-zone">
+        <button class="btn danger" id="clearAllBtn">Radera alla rapporter</button>
+      </div>
+    </div>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
