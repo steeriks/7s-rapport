@@ -794,12 +794,40 @@ function showSendPanel(report) {
   const text = reportToText(report);
   document.getElementById('previewText').textContent = text;
 
+  // Bygger filer (bilder + GPX) för navigator.share.
+  // Returnerar en array — tom om inga filer finns eller canShare nekar.
+  async function buildShareFiles(report) {
+    const imgs = await getImages(report.id).catch(() => []);
+    const imageFiles = imgs.map((img, i) => {
+      const b64 = img.dataUrl.split(',')[1];
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+      return new File([arr], img.name || `bild-${i + 1}.jpg`, { type: 'image/jpeg' });
+    });
+    const gpxFile = makeGpxFile(report);
+    if (!navigator.canShare) return imageFiles; // kan inte kolla — skicka bilderna
+    const withGpx = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
+    if (withGpx.length > 0 && navigator.canShare({ files: withGpx })) return withGpx;
+    if (imageFiles.length > 0 && navigator.canShare({ files: imageFiles })) return imageFiles;
+    return [];
+  }
+
   document.getElementById('copySignalBtn').onclick = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast('✓ Kopierat! Klistra in i Signal.');
-    } catch {
-      showToast('Kopiera texten ovan manuellt');
+    const files = await buildShareFiles(report);
+    if (files.length > 0 && navigator.share) {
+      // Filer finns — öppna delar-menyn så Signal kan ta emot bilder/GPX
+      try {
+        await navigator.share({ title: '7S Rapport', text, files });
+      } catch { /* user cancelled */ }
+    } else {
+      // Inga filer — kopiera texten som vanligt
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('✓ Kopierat! Klistra in i Signal.');
+      } catch {
+        showToast('Kopiera texten ovan manuellt');
+      }
     }
   };
 
@@ -807,32 +835,8 @@ function showSendPanel(report) {
     if (navigator.share) {
       try {
         const shareData = { title: '7S Rapport', text };
-
-        // Bygg bild-filer
-        const imgs = await getImages(report.id).catch(() => []);
-        const imageFiles = imgs.map((img, i) => {
-          const b64 = img.dataUrl.split(',')[1];
-          const bin = atob(b64);
-          const arr = new Uint8Array(bin.length);
-          for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
-          return new File([arr], img.name || `bild-${i + 1}.jpg`, { type: 'image/jpeg' });
-        });
-
-        // GPX-fil (om koordinater finns)
-        const gpxFile = makeGpxFile(report);
-
-        // iOS canShare() returnerar false för hela arrayen om någon filtyp
-        // inte stöds (t.ex. GPX). Prova bilder+GPX, falla tillbaka på
-        // enbart bilder om kombinationen nekas.
-        if (navigator.canShare) {
-          const withGpx = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
-          if (withGpx.length > 0 && navigator.canShare({ files: withGpx })) {
-            shareData.files = withGpx;
-          } else if (imageFiles.length > 0 && navigator.canShare({ files: imageFiles })) {
-            shareData.files = imageFiles;
-          }
-        }
-
+        const files = await buildShareFiles(report);
+        if (files.length > 0) shareData.files = files;
         await navigator.share(shareData);
       } catch { /* user cancelled */ }
     } else {
