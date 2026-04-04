@@ -404,19 +404,41 @@ async function generatePDF(reports) {
       if (imgs.length > 0) {
         checkPage();
         doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(30);
         doc.text('Bilder:', colLabel, y);
         y += lineH;
-        const maxImgW = pageW - 2 * margin;
-        for (const img of imgs) {
-          const aspect = img.width / img.height;
-          const imgWmm = maxImgW;
-          const imgHmm = imgWmm / aspect;
-          checkPage(imgHmm + 4);
+        const maxImgW = pageW - 2 * margin;  // 180mm
+        const maxImgH = 140;                  // max höjd per bild (mm)
+        for (let bi = 0; bi < imgs.length; bi++) {
+          const img = imgs[bi];
+          // Beräkna dimensioner — skala ner till maxImgW och cap på maxImgH
+          let imgWmm = maxImgW;
+          let imgHmm = img.height > 0 ? imgWmm * (img.height / img.width) : imgWmm;
+          if (imgHmm > maxImgH) {
+            imgHmm = maxImgH;
+            imgWmm = img.width > 0 ? imgHmm * (img.width / img.height) : maxImgH;
+          }
+          checkPage(imgHmm + 6);
+          // Detektera format ur data URL (JPEG eller PNG)
+          const fmt = img.dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
           try {
-            doc.addImage(img.dataUrl, 'JPEG', margin, y, imgWmm, imgHmm);
+            doc.addImage(img.dataUrl, fmt, margin, y, imgWmm, imgHmm);
             y += imgHmm + 4;
+            // Bildnummer under bilden
+            doc.setFontSize(8);
+            doc.setTextColor(120);
+            doc.text(`Bild ${bi + 1}${img.name ? ` — ${img.name}` : ''}`, margin, y);
+            doc.setFontSize(10);
+            doc.setTextColor(30);
+            y += 5;
           } catch (err) {
             console.warn('Kunde inte bädda in bild i PDF:', err);
+            doc.setFontSize(9);
+            doc.setTextColor(180, 0, 0);
+            doc.text(`[Bild ${bi + 1} kunde inte visas]`, margin, y);
+            doc.setTextColor(30);
+            y += lineH;
           }
         }
       }
