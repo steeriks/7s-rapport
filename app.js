@@ -485,6 +485,7 @@ function initMapPicker() {
 
   document.getElementById('mapConfirmBtn').addEventListener('click', () => {
     if (!_mapSelLng) return;
+    _pendingCoords = { lat: _mapSelLng.lat, lon: _mapSelLng.lng };
     const system = document.getElementById('stalleSystem').value;
     document.getElementById('stalle').value = convertCoords(_mapSelLng.lat, _mapSelLng.lng, system);
     closeMapModal();
@@ -499,31 +500,6 @@ function initMapPicker() {
   document.getElementById('mapOpenAppleBtn').addEventListener('click', () => {
     if (!_mapSelLng) return;
     window.open(`https://maps.apple.com/?ll=${_mapSelLng.lat},${_mapSelLng.lng}&q=Vald+position`, '_blank');
-  });
-  document.getElementById('mapOpenTopoBtn').addEventListener('click', () => {
-    if (!_mapSelLng) return;
-    const { lat, lng } = _mapSelLng;
-
-    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="7S Rapport" xmlns="http://www.topografix.com/GPX/1/1">
-  <wpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">
-    <name>Observation</name>
-    <desc>${lat.toFixed(5)}, ${lng.toFixed(5)}</desc>
-  </wpt>
-</gpx>`;
-
-    // Ladda ner GPX-filen. iOS Safari visar en nedladdningsnotis —
-    // tryck på den och välj "Öppna med Topo GPS" för att importera punkten.
-    const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'observation.gpx';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    showToast('Öppna nedladdningen och välj Topo GPS');
   });
 
   // When coordinate system changes while map is open, update preview
@@ -594,10 +570,8 @@ function updateMapPreview(lat, lng) {
   const system = document.getElementById('stalleSystem').value;
   const coords = convertCoords(lat, lng, system);
   document.getElementById('mapCoordPreview').textContent = `[${system}] ${coords}`;
-  // Enable/disable "open in" buttons
-  ['mapOpenGoogleBtn', 'mapOpenAppleBtn', 'mapOpenTopoBtn'].forEach(id => {
-    document.getElementById(id).disabled = false;
-  });
+  document.getElementById('mapOpenGoogleBtn').disabled = false;
+  document.getElementById('mapOpenAppleBtn').disabled  = false;
 }
 
 // Parse "lat, lon" style WGS84 decimal from a string (for re-centering the map)
@@ -627,8 +601,9 @@ function initTabs() {
 // ============================================================
 // FORM — NY RAPPORT
 // ============================================================
-let currentReport = null;
+let currentReport  = null;
 let _pendingImages = [];   // { dataUrl, width, height, name }
+let _pendingCoords = null; // { lat, lon } — rå WGS84 från GPS eller kartväljare
 
 function renderImagePreview() {
   const container = document.getElementById('imagePreview');
@@ -695,6 +670,7 @@ function resetForm() {
   const s = getSettings();
   if (s.sagesman) document.getElementById('sagesman').value = s.sagesman;
   _pendingImages = [];
+  _pendingCoords = null;
   renderImagePreview();
 }
 
@@ -723,6 +699,7 @@ function initForm() {
       pos => {
         const lat    = pos.coords.latitude;
         const lon    = pos.coords.longitude;
+        _pendingCoords = { lat, lon };
         const system = document.getElementById('stalleSystem').value;
         const result = convertCoords(lat, lon, system);
         document.getElementById('stalle').value = result;
@@ -762,6 +739,8 @@ function initForm() {
       sedan:         document.getElementById('sedan').value.trim(),
       created:       new Date().toISOString(),
       imageCount:    _pendingImages.length,
+      lat:           _pendingCoords?.lat ?? null,
+      lon:           _pendingCoords?.lon ?? null,
     };
     if (_pendingImages.length > 0) {
       await saveImages(currentReport.id, _pendingImages.slice());
@@ -785,6 +764,28 @@ function initForm() {
   });
 }
 
+// Genererar en GPX-fil för rapporten om WGS84-koordinater finns sparade.
+function makeGpxFile(report) {
+  if (report.lat == null || report.lon == null) return null;
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="7S Rapport" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="${report.lat.toFixed(6)}" lon="${report.lon.toFixed(6)}">
+    <name>${escapeXml(report.sagesman || 'Observation')}</name>
+    <desc>Tidsnr: ${toTidsnummer(report.stund)} | ${escapeXml(report.slag || '')}</desc>
+    <time>${new Date(report.created).toISOString()}</time>
+  </wpt>
+</gpx>`;
+  return new File([gpx], `observation-${toTidsnummer(report.stund)}.gpx`, { type: 'application/gpx+xml' });
+}
+
+function escapeXml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function showSendPanel(report) {
   document.getElementById('reportForm').classList.add('hidden');
   const panel = document.getElementById('sendPanel');
@@ -806,16 +807,25 @@ function showSendPanel(report) {
     if (navigator.share) {
       try {
         const shareData = { title: '7S Rapport', text };
+        const files = [];
+
+        // Bilder
         const imgs = await getImages(report.id).catch(() => []);
-        if (imgs.length > 0 && navigator.canShare) {
-          const files = imgs.map((img, i) => {
-            const b64 = img.dataUrl.split(',')[1];
-            const bin = atob(b64);
-            const arr = new Uint8Array(bin.length);
-            for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
-            return new File([arr], img.name || `bild-${i + 1}.jpg`, { type: 'image/jpeg' });
-          });
-          if (navigator.canShare({ files })) shareData.files = files;
+        for (let i = 0; i < imgs.length; i++) {
+          const img = imgs[i];
+          const b64 = img.dataUrl.split(',')[1];
+          const bin = atob(b64);
+          const arr = new Uint8Array(bin.length);
+          for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+          files.push(new File([arr], img.name || `bild-${i + 1}.jpg`, { type: 'image/jpeg' }));
+        }
+
+        // GPX-fil (om koordinater finns)
+        const gpxFile = makeGpxFile(report);
+        if (gpxFile) files.push(gpxFile);
+
+        if (files.length > 0 && navigator.canShare && navigator.canShare({ files })) {
+          shareData.files = files;
         }
         await navigator.share(shareData);
       } catch { /* user cancelled */ }
