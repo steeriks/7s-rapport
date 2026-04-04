@@ -37,6 +37,64 @@ function deleteReport(id) {
 }
 
 // ============================================================
+// KOORDINATKONVERTERING
+// GPS returnerar alltid WGS84 decimal; detta omvandlar till valt system.
+// ============================================================
+
+function initProj4() {
+  if (!window.proj4) return;
+  proj4.defs('SWEREF99TM',
+    '+proj=utm +zone=33 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs');
+  proj4.defs('RT90',
+    '+proj=tmerc +lat_0=0 +lon_0=15.80827777777778 +k=1.00000561024 ' +
+    '+x_0=1500000 +y_0=0 +ellps=bessel ' +
+    '+towgs84=414.1,41.3,603.1,-0.855,2.141,-7.023,0 +units=m +no_defs');
+}
+
+// WGS84 decimal → grader och decimalminuter  ex: 59°19.589'N 18°4.211'E
+function toWGS84DDM(lat, lon) {
+  function fmt(deg) {
+    const d = Math.floor(Math.abs(deg));
+    const m = ((Math.abs(deg) - d) * 60).toFixed(3);
+    return `${d}°${m}'`;
+  }
+  return `${fmt(lat)}${lat >= 0 ? 'N' : 'S'} ${fmt(lon)}${lon >= 0 ? 'E' : 'W'}`;
+}
+
+// Konverterar WGS84 decimal till valt koordinatsystem.
+// Returnerar en sträng redo att visas i fältet.
+function convertCoords(lat, lon, system) {
+  try {
+    switch (system) {
+      case 'MGRS': {
+        if (!window.mgrs) throw new Error('mgrs library not loaded');
+        // mgrs.forward([lon, lat], precision) – precision 5 = 1 m
+        return window.mgrs.forward([lon, lat], 5);
+      }
+      case 'WGS84 DDM':
+        return toWGS84DDM(lat, lon);
+      case 'SWEREF99': {
+        if (!window.proj4) throw new Error('proj4 not loaded');
+        const [e, n] = proj4('WGS84', 'SWEREF99TM', [lon, lat]);
+        // Svensk notation: northing, easting (hela meter)
+        return `${Math.round(n)}, ${Math.round(e)}`;
+      }
+      case 'RT90': {
+        if (!window.proj4) throw new Error('proj4 not loaded');
+        const [e, n] = proj4('WGS84', 'RT90', [lon, lat]);
+        return `${Math.round(n)}, ${Math.round(e)}`;
+      }
+      default: // WGS84 decimal
+        return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    }
+  } catch (err) {
+    console.error('Koordinatkonvertering misslyckades:', err);
+    // Fallback: WGS84 med tydlig markering
+    return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  }
+}
+
+// ============================================================
 // TIDSNUMMER  (SoldF 2001: DDTIMMI — 6 siffror)
 // Dag i månaden + timme + minut, alltid med inledande nollor.
 // Exempel: onsdag 4 mars kl 21:15 → 042115
@@ -278,11 +336,12 @@ function initForm() {
     showToast('Hämtar position…');
     navigator.geolocation.getCurrentPosition(
       pos => {
-        const lat = pos.coords.latitude.toFixed(5);
-        const lon = pos.coords.longitude.toFixed(5);
-        document.getElementById('stalle').value = `${lat}, ${lon}`;
-        document.getElementById('stalleSystem').value = 'WGS84';
-        showToast('✓ GPS-position hämtad (WGS84)');
+        const lat    = pos.coords.latitude;
+        const lon    = pos.coords.longitude;
+        const system = document.getElementById('stalleSystem').value;
+        const result = convertCoords(lat, lon, system);
+        document.getElementById('stalle').value = result;
+        showToast(`✓ Position hämtad (${system})`);
       },
       err => {
         if (err.code === 1) {
@@ -674,6 +733,7 @@ function registerSW() {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   registerSW();
+  initProj4();
   initTabs();
   initForm();
   initDailyBtn();
