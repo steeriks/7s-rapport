@@ -271,23 +271,6 @@ body {
 .empty-msg { color: var(--text-muted); text-align: center; padding: 30px 0; font-size: 15px; }
 
 /* ===== SETTINGS ===== */
-.emailjs-setup {
-  border: 1px solid var(--green-pale);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
-}
-
-.emailjs-setup summary {
-  font-weight: 600;
-  color: var(--green-dark);
-  cursor: pointer;
-  font-size: 14px;
-  list-style: none;
-}
-
-.emailjs-setup .field { margin-top: 12px; }
-
 .hint-block {
   margin-top: 10px;
   background: #fff8e1;

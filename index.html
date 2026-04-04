@@ -12,7 +12,6 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -176,23 +175,6 @@
         <label for="settingEmail">Central e-postadress (Stab/högre chef)</label>
         <input type="email" id="settingEmail" placeholder="hq@example.com">
       </div>
-
-      <details class="emailjs-setup">
-        <summary>E-postkonfiguration (EmailJS) ▾</summary>
-        <p class="hint-block">För att skicka e-post direkt från appen behöver du ett gratis konto på <strong>emailjs.com</strong>. Fyll i uppgifterna nedan efter att du skapat kontot.</p>
-        <div class="field">
-          <label for="ejsPublicKey">EmailJS Public Key</label>
-          <input type="text" id="ejsPublicKey" placeholder="XXXX...">
-        </div>
-        <div class="field">
-          <label for="ejsServiceId">Service ID</label>
-          <input type="text" id="ejsServiceId" placeholder="service_...">
-        </div>
-        <div class="field">
-          <label for="ejsTemplateId">Template ID</label>
-          <input type="text" id="ejsTemplateId" placeholder="template_...">
-        </div>
-      </details>
 
       <div class="field">
         <label for="dailyTime">Påminnelse daglig rapport</label>

@@ -24,21 +24,13 @@
 
 ---
 
-## Steg 3 – Konfigurera e-post (för att skicka till Stab/högre chef)
+## Steg 3 – Ange mottagaradress (Stab/högre chef)
 
-Enklaste sättet är att konfigurera **EmailJS** (gratis, 200 mejl/månad):
+1. Öppna appen → **Inställningar**
+2. Fyll i e-postadressen under **"Central e-postadress"**
+3. Tryck **Spara inställningar**
 
-1. Gå till **https://emailjs.com** och skapa ett konto
-2. Lägg till en e-posttjänst (t.ex. Gmail) – följ guiden på deras sida
-3. Skapa en e-postmall med dessa fält:
-   - `to_email` – mottagarens adress
-   - `subject` – ämne
-   - `message` – rapporttexten
-   - `from_name` – avsändarens namn
-4. Kopiera din **Public Key**, **Service ID** och **Template ID**
-5. Öppna appen → Inställningar → fyll i dessa under "E-postkonfiguration"
-
-**Alternativ (ingen konfiguration):** Om du inte ställer in EmailJS öppnas din vanliga e-postapp automatiskt med rapporten ifylld. Du trycker bara Skicka.
+När du sedan trycker "Skicka som e-post" eller "Dagssammanfattning" öppnas enhetens inbyggda e-postklient (Mail, Gmail, Outlook m.fl.) med rapporten redan ifylld — du trycker bara Skicka.
 
 ---
 
@@ -48,7 +40,7 @@ Enklaste sättet är att konfigurera **EmailJS** (gratis, 200 mejl/månad):
 2. Gå till fliken "Sparade"
 3. Tryck "Skicka dagssammanfattning"
 
-Appen laddar ner en PDF med alla dagens rapporter OCH skickar dem per e-post om EmailJS är konfigurerat.
+Appen laddar ner en PDF med alla dagens rapporter och öppnar din e-postklient med sammanfattningen ifylld.
 
 ---
 

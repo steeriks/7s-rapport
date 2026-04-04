@@ -15,9 +15,6 @@ function getSettings() {
   return DB.get('settings', {
     sagesman: '',
     centralEmail: '',
-    ejsPublicKey: '',
-    ejsServiceId: '',
-    ejsTemplateId: '',
     dailyTime: '20:00',
   });
 }
@@ -334,32 +331,11 @@ function downloadPDF(doc, filename) {
 }
 
 // ============================================================
-// EMAIL (EmailJS)
+// E-POST — öppnar enhetens inbyggda e-postklient via mailto:
 // ============================================================
-async function sendEmailWithText(subject, body) {
-  const s = getSettings();
-  if (!s.ejsPublicKey || !s.ejsServiceId || !s.ejsTemplateId) {
-    showToast('Konfigurera EmailJS i Inställningar först');
-    return false;
-  }
-  if (!s.centralEmail) {
-    showToast('Ange central e-postadress i Inställningar');
-    return false;
-  }
-  emailjs.init(s.ejsPublicKey);
-  try {
-    await emailjs.send(s.ejsServiceId, s.ejsTemplateId, {
-      to_email:  s.centralEmail,
-      subject,
-      message:   body,
-      from_name: s.sagesman || 'Okänd',
-    });
-    return true;
-  } catch (err) {
-    console.error('EmailJS error:', err);
-    showToast('E-postfel: ' + (err.text || 'Okänt fel'));
-    return false;
-  }
+function openMailto(to, subject, body) {
+  window.location.href =
+    `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 // ============================================================
@@ -521,16 +497,10 @@ function showSendPanel(report) {
     }
   };
 
-  document.getElementById('sendEmailBtn').onclick = async () => {
+  document.getElementById('sendEmailBtn').onclick = () => {
     const s = getSettings();
     const subject = `7S Rapport – tidsnr ${toTidsnummer(report.stund)} – ${report.sagesman || ''}`;
-    if (s.ejsPublicKey && s.ejsServiceId && s.ejsTemplateId) {
-      const ok = await sendEmailWithText(subject, text);
-      if (ok) showToast('✓ E-post skickad till Stab/högre chef');
-    } else {
-      window.location.href =
-        `mailto:${s.centralEmail || ''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
-    }
+    openMailto(s.centralEmail || '', subject, text);
   };
 
   document.getElementById('downloadPdfBtn').onclick = () => {
@@ -629,20 +599,8 @@ function initDailyBtn() {
 
     const allText = todayReports.map(reportToText).join('\n\n');
     const s       = getSettings();
-
-    if (s.ejsPublicKey && s.ejsServiceId && s.ejsTemplateId && s.centralEmail) {
-      const subject = `7S Dagsrapport ${today} — ${todayReports.length} rapporter — ${s.sagesman || ''}`;
-      const ok = await sendEmailWithText(subject, allText);
-      if (ok) { showToast(`✓ ${todayReports.length} rapporter skickade till Stab/högre chef`); return; }
-    }
-
-    if (s.centralEmail) {
-      const subject = `7S Dagsrapport ${today} — ${todayReports.length} rapporter`;
-      window.location.href =
-        `mailto:${s.centralEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(allText)}`;
-    } else {
-      showToast('PDF nedladdad — ange Stab/högre chef e-post i Inställningar för automatisk sändning');
-    }
+    const subject = `7S Dagsrapport ${today} — ${todayReports.length} rapporter — ${s.sagesman || ''}`;
+    openMailto(s.centralEmail || '', subject, allText);
   });
 }
 
@@ -653,18 +611,12 @@ function initSettings() {
   const s = getSettings();
   document.getElementById('settingName').value  = s.sagesman    || '';
   document.getElementById('settingEmail').value = s.centralEmail || '';
-  document.getElementById('ejsPublicKey').value = s.ejsPublicKey || '';
-  document.getElementById('ejsServiceId').value = s.ejsServiceId || '';
-  document.getElementById('ejsTemplateId').value= s.ejsTemplateId|| '';
   document.getElementById('dailyTime').value    = s.dailyTime   || '20:00';
 
   document.getElementById('saveSettingsBtn').addEventListener('click', () => {
     const updated = {
       sagesman:     document.getElementById('settingName').value.trim(),
       centralEmail: document.getElementById('settingEmail').value.trim(),
-      ejsPublicKey: document.getElementById('ejsPublicKey').value.trim(),
-      ejsServiceId: document.getElementById('ejsServiceId').value.trim(),
-      ejsTemplateId:document.getElementById('ejsTemplateId').value.trim(),
       dailyTime:    document.getElementById('dailyTime').value,
     };
     saveSettings(updated);
