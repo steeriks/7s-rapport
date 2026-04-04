@@ -458,6 +458,137 @@ function showToast(msg) {
 }
 
 // ============================================================
+// KARTVÄLJARE — Leaflet + OpenStreetMap
+// ============================================================
+let _map         = null;
+let _mapMarker   = null;
+let _mapSelLng   = null;   // { lat, lng }
+
+function initMapPicker() {
+  document.getElementById('mapPickerBtn').addEventListener('click', openMapModal);
+  document.getElementById('mapModalClose').addEventListener('click', closeMapModal);
+  document.getElementById('mapModal').addEventListener('click', e => {
+    if (e.target.id === 'mapModal') closeMapModal();
+  });
+
+  document.getElementById('mapGpsBtn').addEventListener('click', () => {
+    if (!navigator.geolocation || !_map) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        _map.setView([lat, lng], 15);
+        placeMapMarker(lat, lng);
+      },
+      () => showToast('GPS ej tillgänglig')
+    );
+  });
+
+  document.getElementById('mapConfirmBtn').addEventListener('click', () => {
+    if (!_mapSelLng) return;
+    const system = document.getElementById('stalleSystem').value;
+    document.getElementById('stalle').value = convertCoords(_mapSelLng.lat, _mapSelLng.lng, system);
+    closeMapModal();
+    showToast(`✓ Position vald (${system})`);
+  });
+
+  // "Öppna i"-knappar (verifiering i extern karta)
+  document.getElementById('mapOpenGoogleBtn').addEventListener('click', () => {
+    if (!_mapSelLng) return;
+    window.open(`https://maps.google.com/?q=${_mapSelLng.lat},${_mapSelLng.lng}`, '_blank');
+  });
+  document.getElementById('mapOpenAppleBtn').addEventListener('click', () => {
+    if (!_mapSelLng) return;
+    window.open(`https://maps.apple.com/?ll=${_mapSelLng.lat},${_mapSelLng.lng}&q=Vald+position`, '_blank');
+  });
+  document.getElementById('mapOpenTopoBtn').addEventListener('click', () => {
+    if (!_mapSelLng) return;
+    window.open(`https://www.topogps.com/iphone/?lat=${_mapSelLng.lat}&long=${_mapSelLng.lng}`, '_blank');
+  });
+
+  // When coordinate system changes while map is open, update preview
+  document.getElementById('stalleSystem').addEventListener('change', () => {
+    if (_mapSelLng) updateMapPreview(_mapSelLng.lat, _mapSelLng.lng);
+  });
+}
+
+function openMapModal() {
+  const modal = document.getElementById('mapModal');
+  modal.classList.remove('hidden');
+
+  if (!_map) {
+    _map = L.map('mapContainer', { zoomControl: true }).setView([59.33, 18.07], 8);
+
+    const osm  = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 19,
+    });
+    const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>, © <a href="https://opentopomap.org">OpenTopoMap</a>',
+      maxZoom: 17,
+    });
+    osm.addTo(_map);
+    L.control.layers({ 'Karta': osm, 'Topografisk': topo }, {}, { position: 'topright' }).addTo(_map);
+
+    _map.on('click', e => placeMapMarker(e.latlng.lat, e.latlng.lng));
+  }
+
+  // Try to center on existing coordinate if it's WGS84 decimal
+  const existing = document.getElementById('stalle').value.trim();
+  const wgs = _parseWGS84(existing);
+  if (wgs) {
+    _map.setView([wgs.lat, wgs.lng], 14);
+    placeMapMarker(wgs.lat, wgs.lng);
+  }
+
+  // Leaflet needs a moment after the element becomes visible
+  requestAnimationFrame(() => _map.invalidateSize());
+}
+
+function closeMapModal() {
+  document.getElementById('mapModal').classList.add('hidden');
+  // Don't destroy the map — reuse it next time
+}
+
+function placeMapMarker(lat, lng) {
+  if (_mapMarker) {
+    _mapMarker.setLatLng([lat, lng]);
+  } else {
+    _mapMarker = L.marker([lat, lng], { draggable: true }).addTo(_map);
+    _mapMarker.on('drag', () => {
+      const p = _mapMarker.getLatLng();
+      updateMapPreview(p.lat, p.lng);
+    });
+    _mapMarker.on('dragend', () => {
+      const p = _mapMarker.getLatLng();
+      placeMapMarker(p.lat, p.lng);
+    });
+  }
+  updateMapPreview(lat, lng);
+  document.getElementById('mapConfirmBtn').disabled = false;
+  _map.panTo([lat, lng]);
+}
+
+function updateMapPreview(lat, lng) {
+  _mapSelLng = { lat, lng };
+  const system = document.getElementById('stalleSystem').value;
+  const coords = convertCoords(lat, lng, system);
+  document.getElementById('mapCoordPreview').textContent = `[${system}] ${coords}`;
+  // Enable/disable "open in" buttons
+  ['mapOpenGoogleBtn', 'mapOpenAppleBtn', 'mapOpenTopoBtn'].forEach(id => {
+    document.getElementById(id).disabled = false;
+  });
+}
+
+// Parse "lat, lon" style WGS84 decimal from a string (for re-centering the map)
+function _parseWGS84(str) {
+  const m = str.match(/(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { lat, lng };
+}
+
+// ============================================================
 // TABS
 // ============================================================
 function initTabs() {
@@ -962,6 +1093,7 @@ document.addEventListener('DOMContentLoaded', () => {
   registerSW();
   initTabs();
   initForm();
+  initMapPicker();
   initDailyBtn();
   initSettings();
   checkDailyReminder();
