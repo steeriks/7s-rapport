@@ -873,7 +873,7 @@ function showSendPanel(report) {
 
   document.getElementById('sendEmailBtn').onclick = async () => {
     const s       = getSettings();
-    const subject = `7S Rapport – tidsnr ${toTidsnummer(report.stund)} – ${report.sagesman || ''}`;
+    const subject = toTidsnummer(report.stund);
     const files   = await buildShareFiles(report);
 
     if (files.length > 0 && navigator.share) {
