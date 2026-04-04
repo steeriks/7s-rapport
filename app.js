@@ -31,6 +31,87 @@ function addReport(report) {
 
 function deleteReport(id) {
   saveReports(getReports().filter(r => r.id !== id));
+  deleteImages(id).catch(() => {});
+}
+
+// ============================================================
+// INDEXEDDB — bildlagring
+// ============================================================
+const _IDB_NAME  = '7s-rapport-images';
+const _IDB_STORE = 'images';
+
+function _openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_IDB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(_IDB_STORE);
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function saveImages(reportId, images) {
+  if (!images || images.length === 0) return;
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    tx.objectStore(_IDB_STORE).put(images, reportId);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function getImages(reportId) {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction(_IDB_STORE, 'readonly');
+    const req = tx.objectStore(_IDB_STORE).get(reportId);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function deleteImages(reportId) {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    tx.objectStore(_IDB_STORE).delete(reportId);
+    tx.oncomplete = () => resolve();
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function clearAllImages() {
+  const db = await _openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(_IDB_STORE, 'readwrite');
+    tx.objectStore(_IDB_STORE).clear();
+    tx.oncomplete = () => resolve();
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+// ============================================================
+// BILDKOMPRIMERING — canvas-baserad, max 1200px bredd
+// ============================================================
+function compressImage(file, maxW = 1200, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = e => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxW) { height = Math.round(height * maxW / width); width = maxW; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve({ dataUrl: canvas.toDataURL('image/jpeg', quality), width, height, name: file.name });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // ============================================================
@@ -241,7 +322,7 @@ function reportToText(r) {
 // ============================================================
 // PDF GENERATION
 // ============================================================
-function generatePDF(reports) {
+async function generatePDF(reports) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
@@ -252,8 +333,8 @@ function generatePDF(reports) {
   const lineH = 7;
   let y = 20;
 
-  function checkPage() {
-    if (y > 270) { doc.addPage(); y = 20; }
+  function checkPage(needed = 0) {
+    if (y + needed > 270) { doc.addPage(); y = 20; }
   }
 
   // Header
@@ -291,7 +372,8 @@ function generatePDF(reports) {
     ['8. Sedan',          r => r.sedan || ''],
   ];
 
-  reports.forEach((r, idx) => {
+  for (let idx = 0; idx < reports.length; idx++) {
+    const r = reports[idx];
     checkPage();
 
     doc.setFontSize(12);
@@ -316,12 +398,36 @@ function generatePDF(reports) {
       y += lineH * wrapped.length;
     });
 
+    // Embedded images
+    if (r.id) {
+      const imgs = await getImages(r.id).catch(() => []);
+      if (imgs.length > 0) {
+        checkPage();
+        doc.setFont('helvetica', 'bold');
+        doc.text('Bilder:', colLabel, y);
+        y += lineH;
+        const maxImgW = pageW - 2 * margin;
+        for (const img of imgs) {
+          const aspect = img.width / img.height;
+          const imgWmm = maxImgW;
+          const imgHmm = imgWmm / aspect;
+          checkPage(imgHmm + 4);
+          try {
+            doc.addImage(img.dataUrl, 'JPEG', margin, y, imgWmm, imgHmm);
+            y += imgHmm + 4;
+          } catch (err) {
+            console.warn('Kunde inte bädda in bild i PDF:', err);
+          }
+        }
+      }
+    }
+
     y += 3;
     doc.setDrawColor(180);
     doc.setLineWidth(0.2);
     doc.line(margin, y, pageW - margin, y);
     y += 6;
-  });
+  }
 
   return doc;
 }
@@ -370,6 +476,60 @@ function initTabs() {
 // FORM — NY RAPPORT
 // ============================================================
 let currentReport = null;
+let _pendingImages = [];   // { dataUrl, width, height, name }
+
+function renderImagePreview() {
+  const container = document.getElementById('imagePreview');
+  const badge     = document.getElementById('imgCountBadge');
+  container.innerHTML = '';
+
+  if (_pendingImages.length === 0) {
+    badge.classList.add('hidden');
+    return;
+  }
+
+  badge.classList.remove('hidden');
+  badge.textContent = `${_pendingImages.length} bild${_pendingImages.length !== 1 ? 'er' : ''}`;
+
+  _pendingImages.forEach((img, idx) => {
+    const thumb = document.createElement('div');
+    thumb.className = 'img-thumb';
+    thumb.innerHTML = `
+      <img src="${img.dataUrl}" alt="${escapeHtml(img.name)}">
+      <button type="button" class="img-remove" data-idx="${idx}" title="Ta bort bild">✕</button>`;
+    container.appendChild(thumb);
+  });
+
+  container.querySelectorAll('.img-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _pendingImages.splice(Number(btn.dataset.idx), 1);
+      renderImagePreview();
+    });
+  });
+}
+
+function initImagePicker() {
+  const pickerBtn  = document.getElementById('imagePickerBtn');
+  const imageInput = document.getElementById('imageInput');
+
+  pickerBtn.addEventListener('click', () => imageInput.click());
+
+  imageInput.addEventListener('change', async () => {
+    const files = Array.from(imageInput.files);
+    if (files.length === 0) return;
+    showToast('Bearbetar bilder…');
+    try {
+      const compressed = await Promise.all(files.map(f => compressImage(f)));
+      _pendingImages.push(...compressed);
+      renderImagePreview();
+      showToast(`✓ ${files.length} bild${files.length !== 1 ? 'er' : ''} tillagd`);
+    } catch (err) {
+      console.error('Bildkomprimering misslyckades:', err);
+      showToast('Kunde inte lägga till bilder');
+    }
+    imageInput.value = '';
+  });
+}
 
 function resetForm() {
   document.getElementById('reportForm').reset();
@@ -382,6 +542,8 @@ function resetForm() {
   updateTidsnummerBadge(local);
   const s = getSettings();
   if (s.sagesman) document.getElementById('sagesman').value = s.sagesman;
+  _pendingImages = [];
+  renderImagePreview();
 }
 
 function updateTidsnummerBadge(value) {
@@ -394,6 +556,7 @@ function initForm() {
   const sendPanel = document.getElementById('sendPanel');
 
   resetForm();
+  initImagePicker();
 
   // Live tidsnummer update
   document.getElementById('stund').addEventListener('input', e => {
@@ -432,7 +595,7 @@ function initForm() {
   });
 
   // Submit
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     currentReport = {
       id:            Date.now().toString(),
@@ -446,7 +609,11 @@ function initForm() {
       sagesman:      document.getElementById('sagesman').value.trim(),
       sedan:         document.getElementById('sedan').value.trim(),
       created:       new Date().toISOString(),
+      imageCount:    _pendingImages.length,
     };
+    if (_pendingImages.length > 0) {
+      await saveImages(currentReport.id, _pendingImages.slice());
+    }
     addReport(currentReport);
     showSendPanel(currentReport);
   });
@@ -485,8 +652,21 @@ function showSendPanel(report) {
 
   document.getElementById('shareBtn').onclick = async () => {
     if (navigator.share) {
-      try { await navigator.share({ title: '7S Rapport', text }); }
-      catch { /* user cancelled */ }
+      try {
+        const shareData = { title: '7S Rapport', text };
+        const imgs = await getImages(report.id).catch(() => []);
+        if (imgs.length > 0 && navigator.canShare) {
+          const files = imgs.map((img, i) => {
+            const b64 = img.dataUrl.split(',')[1];
+            const bin = atob(b64);
+            const arr = new Uint8Array(bin.length);
+            for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+            return new File([arr], img.name || `bild-${i + 1}.jpg`, { type: 'image/jpeg' });
+          });
+          if (navigator.canShare({ files })) shareData.files = files;
+        }
+        await navigator.share(shareData);
+      } catch { /* user cancelled */ }
     } else {
       try {
         await navigator.clipboard.writeText(text);
@@ -503,8 +683,8 @@ function showSendPanel(report) {
     openMailto(s.centralEmail || '', subject, text);
   };
 
-  document.getElementById('downloadPdfBtn').onclick = () => {
-    const doc = generatePDF([report]);
+  document.getElementById('downloadPdfBtn').onclick = async () => {
+    const doc = await generatePDF([report]);
     downloadPDF(doc, `7S-rapport-${toTidsnummer(report.stund)}-${report.sagesman || report.id}.pdf`);
     showToast('PDF nedladdad');
   };
@@ -532,7 +712,7 @@ function renderReports() {
         </div>
       </div>
       <div class="report-item-detail">
-        📍 ${escapeHtml(r.stalle || '–')}  |  👤 ${escapeHtml(r.sagesman || '–')}
+        📍 ${escapeHtml(r.stalle || '–')}  |  👤 ${escapeHtml(r.sagesman || '–')}${r.imageCount > 0 ? `  |  📷 ${r.imageCount} bild${r.imageCount !== 1 ? 'er' : ''}` : ''}
       </div>
       <div class="report-item-actions">
         <button class="btn secondary view-btn" data-id="${r.id}">Visa</button>
@@ -562,10 +742,10 @@ function renderReports() {
   });
 
   list.querySelectorAll('.pdf-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const r = getReports().find(x => x.id === btn.dataset.id);
       if (!r) return;
-      const doc = generatePDF([r]);
+      const doc = await generatePDF([r]);
       downloadPDF(doc, `7S-rapport-${toTidsnummer(r.stund)}-${r.sagesman || r.id}.pdf`);
       showToast('PDF nedladdad');
     });
@@ -593,7 +773,7 @@ function initDailyBtn() {
       return;
     }
 
-    const doc      = generatePDF(todayReports);
+    const doc      = await generatePDF(todayReports);
     const filename = `7S-dagsrapport-${today}.pdf`;
     downloadPDF(doc, filename);
 
@@ -634,6 +814,7 @@ function initSettings() {
   document.getElementById('clearAllBtn').addEventListener('click', () => {
     if (confirm('Radera ALLA sparade rapporter? Det går inte att ångra.')) {
       saveReports([]);
+      clearAllImages().catch(() => {});
       showToast('Alla rapporter raderade');
     }
   });
