@@ -500,22 +500,32 @@ function initMapPicker() {
     if (!_mapSelLng) return;
     window.open(`https://maps.apple.com/?ll=${_mapSelLng.lat},${_mapSelLng.lng}&q=Vald+position`, '_blank');
   });
-  document.getElementById('mapOpenTopoBtn').addEventListener('click', () => {
+  document.getElementById('mapOpenTopoBtn').addEventListener('click', async () => {
     if (!_mapSelLng) return;
     const { lat, lng } = _mapSelLng;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (isIOS) {
-      // Try to open Topo GPS app directly via iOS URL scheme.
-      // If app is installed this opens it; if not, iOS shows an error.
-      // We also show a toast with the WGS84 coordinate so the user can
-      // copy and paste it into Topo GPS's search field as a fallback.
-      window.location.href = `topogps://?lat=${lat.toFixed(6)}&lon=${lng.toFixed(6)}`;
-      setTimeout(() => {
-        const wgs = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-        showToast(`Topo GPS: ${wgs}`);
-      }, 800);
+
+    // Topo GPS imports GPX files via the iOS share sheet.
+    // We generate a minimal GPX waypoint and share it as a file.
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="7S Rapport" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">
+    <name>Observation</name>
+    <desc>${lat.toFixed(5)}, ${lng.toFixed(5)}</desc>
+  </wpt>
+</gpx>`;
+    const file = new File([gpx], 'observation.gpx', { type: 'application/gpx+xml' });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ title: 'Observation', files: [file] });
+      } catch (err) {
+        if (err.name !== 'AbortError') showToast('Delning misslyckades');
+      }
     } else {
-      window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, '_blank');
+      // Fallback: copy WGS84 decimal so user can paste into Topo GPS search
+      const wgs = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      try { await navigator.clipboard.writeText(wgs); } catch {}
+      showToast(`Kopierat: ${wgs} — klistra in i Topo GPS`);
     }
   });
 
