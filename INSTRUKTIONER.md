@@ -1,15 +1,7 @@
 # 7S Rapport – Instruktioner
 
-## Snabbstart (5 minuter)
 
-### Steg 1 – Publicera appen (gratis)
-
-1. Skapa ett gratis konto på **https://netlify.com**
-2. Logga in → dra och släpp hela mappen `7s-rapport` på Netlify-sidan
-3. Du får en länk, t.ex. `https://dittnamn.netlify.app`
-4. Dela länken med alla som ska använda appen
-
-### Steg 2 – Lägg till på hemskärmen
+### Steg 1 – Lägg till på hemskärmen
 
 **iPhone:**
 1. Öppna länken i Safari (inte Chrome)
