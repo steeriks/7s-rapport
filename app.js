@@ -936,20 +936,19 @@ function showSendPanel(report) {
   document.getElementById('sendEmailBtn').onclick = async () => {
     const s       = getSettings();
     const subject = `7S Rpt TNR: ${toTidsnummer(report.stund)}`;
+
+    // Öppna mailklienten direkt — måste ske innan await, annars blockerar iOS
+    openMailto(s.centralEmail || '', subject, text);
+    markReportSent(report.id);
+
+    // Om bilder eller GPX finns: öppna share-menyn efteråt så de kan bifogas i Mail
     const { imageFiles, gpxFile } = _assets;
     const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
-
-    const opened = await tryShare([
-      { title: subject, text, files: allFiles },
-      { title: subject, text, files: imageFiles },
-      { title: subject, text },
-    ]);
-
-    if (opened) {
-      markReportSent(report.id);
-    } else {
-      openMailto(s.centralEmail || '', subject, text);
-      markReportSent(report.id);
+    if (allFiles.length > 0 && navigator.share) {
+      await tryShare([
+        { files: allFiles },
+        { files: imageFiles },
+      ]);
     }
   };
 
