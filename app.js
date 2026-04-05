@@ -867,17 +867,19 @@ function showSendPanel(report) {
   }
 
   document.getElementById('copySignalBtn').onclick = async () => {
-    const { imageFiles, gpxFile } = _assets;
+    const { imageFiles } = _assets;
 
-    if (navigator.share && (imageFiles.length > 0 || gpxFile)) {
-      // MED filer: Signal ignorerar text-parametern när filer skickas.
-      // Kopiera texten till urklipp + dela bilder + GPX — klistra in texten i Signal.
-      navigator.clipboard.writeText(text).catch(() => {});
-      const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
-      const opened = await tryShare([
-        { files: allFiles },     // bilder + GPX
-        { files: imageFiles },   // bara bilder om GPX nekas
-      ]);
+    // Signal stöder inte GPX-filer — ersätt med Google Maps-länk i texten.
+    // Mottagaren trycker på länken för att öppna positionen direkt i kartan.
+    let signalText = text;
+    if (report.lat != null && report.lon != null) {
+      signalText += `\n\nKarta: https://maps.google.com/?q=${report.lat.toFixed(5)},${report.lon.toFixed(5)}`;
+    }
+
+    if (navigator.share && imageFiles.length > 0) {
+      // MED bilder: kopiera text+länk till urklipp, dela bilder via share-menyn.
+      navigator.clipboard.writeText(signalText).catch(() => {});
+      const opened = await tryShare([{ files: imageFiles }]);
       if (opened) {
         showToast('Klistra in rapporten som text i Signal');
         return;
@@ -885,14 +887,14 @@ function showSendPanel(report) {
     }
 
     if (navigator.share) {
-      // UTAN bilder: dela texten direkt via share-menyn — Signal fyller i den automatiskt.
-      const opened = await tryShare([{ text }]);
+      // UTAN bilder: dela texten direkt — Signal fyller i den automatiskt.
+      const opened = await tryShare([{ text: signalText }]);
       if (opened) return;
     }
 
     // Fallback — share saknas: kopiera till urklipp
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(signalText);
       showToast('✓ Kopierat! Klistra in i Signal.');
     } catch {
       showToast('Kopiera texten ovan manuellt');
