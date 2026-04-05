@@ -867,24 +867,23 @@ function showSendPanel(report) {
   }
 
   document.getElementById('copySignalBtn').onclick = async () => {
-    // Inga await-anrop innan tryShare — _assets är redan inläst
-    const { imageFiles, gpxFile } = _assets;
-    const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
+    const { imageFiles } = _assets;
 
-    const opened = await tryShare([
-      { text, files: allFiles },      // text + bilder + GPX
-      { text, files: imageFiles },    // text + bilder (utan GPX om GPX nekas)
-      { text },                        // enbart text (om bilder nekas)
-    ]);
+    // Signal ignorerar text-parametern i navigator.share när filer skickas.
+    // Lösning: kopiera rapporten till urklipp direkt, dela sedan bara bilderna.
+    // Användaren klistrar in texten som meddelande i Signal.
+    navigator.clipboard.writeText(text).catch(() => {});
 
-    if (!opened) {
-      try {
-        await navigator.clipboard.writeText(text);
-        showToast('✓ Kopierat! Klistra in i Signal.');
-      } catch {
-        showToast('Kopiera texten ovan manuellt');
+    if (navigator.share && imageFiles.length > 0) {
+      const opened = await tryShare([{ files: imageFiles }]);
+      if (opened) {
+        showToast('Klistra in rapporten som text i Signal');
+        return;
       }
     }
+
+    // Inga bilder eller share saknas — bara text kopierad
+    showToast('✓ Kopierat! Klistra in i Signal.');
   };
 
   document.getElementById('shareBtn').onclick = async () => {
