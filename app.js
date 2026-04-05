@@ -869,12 +869,10 @@ function showSendPanel(report) {
   document.getElementById('copySignalBtn').onclick = async () => {
     const { imageFiles } = _assets;
 
-    // Signal ignorerar text-parametern i navigator.share när filer skickas.
-    // Lösning: kopiera rapporten till urklipp direkt, dela sedan bara bilderna.
-    // Användaren klistrar in texten som meddelande i Signal.
-    navigator.clipboard.writeText(text).catch(() => {});
-
     if (navigator.share && imageFiles.length > 0) {
+      // MED bilder: Signal ignorerar text-parametern när filer skickas.
+      // Kopiera texten till urklipp + dela bara bilderna — klistra in texten i Signal.
+      navigator.clipboard.writeText(text).catch(() => {});
       const opened = await tryShare([{ files: imageFiles }]);
       if (opened) {
         showToast('Klistra in rapporten som text i Signal');
@@ -882,8 +880,19 @@ function showSendPanel(report) {
       }
     }
 
-    // Inga bilder eller share saknas — bara text kopierad
-    showToast('✓ Kopierat! Klistra in i Signal.');
+    if (navigator.share) {
+      // UTAN bilder: dela texten direkt via share-menyn — Signal fyller i den automatiskt.
+      const opened = await tryShare([{ text }]);
+      if (opened) return;
+    }
+
+    // Fallback — share saknas: kopiera till urklipp
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('✓ Kopierat! Klistra in i Signal.');
+    } catch {
+      showToast('Kopiera texten ovan manuellt');
+    }
   };
 
   document.getElementById('shareBtn').onclick = async () => {
