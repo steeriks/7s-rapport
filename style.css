@@ -300,6 +300,12 @@ body {
   border-top: 1px solid #eee;
 }
 
+.diag-zone {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
 /* ===== LABEL ROW (label + tidsnummer badge) ===== */
 .label-row {
   display: flex;

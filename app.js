@@ -1057,6 +1057,10 @@ function initSettings() {
       showToast('Alla rapporter raderade');
     }
   });
+
+  document.getElementById('diagShareBtn').addEventListener('click', () => {
+    window._testShare();
+  });
 }
 
 // ============================================================
