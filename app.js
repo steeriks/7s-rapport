@@ -869,11 +869,15 @@ function showSendPanel(report) {
   document.getElementById('copySignalBtn').onclick = async () => {
     const { imageFiles } = _assets;
 
-    if (navigator.share && imageFiles.length > 0) {
-      // MED bilder: Signal ignorerar text-parametern när filer skickas.
-      // Kopiera texten till urklipp + dela bara bilderna — klistra in texten i Signal.
+    if (navigator.share && (imageFiles.length > 0 || gpxFile)) {
+      // MED filer: Signal ignorerar text-parametern när filer skickas.
+      // Kopiera texten till urklipp + dela bilder + GPX — klistra in texten i Signal.
       navigator.clipboard.writeText(text).catch(() => {});
-      const opened = await tryShare([{ files: imageFiles }]);
+      const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
+      const opened = await tryShare([
+        { files: allFiles },     // bilder + GPX
+        { files: imageFiles },   // bara bilder om GPX nekas
+      ]);
       if (opened) {
         showToast('Klistra in rapporten som text i Signal');
         return;
