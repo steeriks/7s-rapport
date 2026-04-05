@@ -1,4 +1,4 @@
-const CACHE = '7s-rapport-v29';
+const CACHE = '7s-rapport-v30';
 const ASSETS = [
   './',
   './index.html',

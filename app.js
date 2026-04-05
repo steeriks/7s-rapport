@@ -298,9 +298,13 @@ function todayISO() {
 function reportToText(r) {
   const tidsnr = toTidsnummer(r.stund);
   // Include coord system label if stored
-  const stalleFull = r.stalleSystem && r.stalleSystem !== 'WGS84'
+  const stalleBase = r.stalleSystem && r.stalleSystem !== 'WGS84'
     ? `[${r.stalleSystem}] ${r.stalle || '–'}`
     : r.stalle || '–';
+  const mapLink = r.lat != null && r.lon != null
+    ? ` (https://maps.google.com/?q=${r.lat.toFixed(5)},${r.lon.toFixed(5)})`
+    : '';
+  const stalleFull = stalleBase + mapLink;
 
   const lines = [
     '═══════════════════════════',
@@ -869,16 +873,10 @@ function showSendPanel(report) {
   document.getElementById('copySignalBtn').onclick = async () => {
     const { imageFiles } = _assets;
 
-    // Signal stöder inte GPX-filer — ersätt med Google Maps-länk i texten.
-    // Mottagaren trycker på länken för att öppna positionen direkt i kartan.
-    let signalText = text;
-    if (report.lat != null && report.lon != null) {
-      signalText += `\n\nKarta: https://maps.google.com/?q=${report.lat.toFixed(5)},${report.lon.toFixed(5)}`;
-    }
-
+    // Kartlänk finns nu i Ställe-fältet i texten — ingen separat hantering behövs.
     if (navigator.share && imageFiles.length > 0) {
-      // MED bilder: kopiera text+länk till urklipp, dela bilder via share-menyn.
-      navigator.clipboard.writeText(signalText).catch(() => {});
+      // MED bilder: kopiera text till urklipp, dela bilder via share-menyn.
+      navigator.clipboard.writeText(text).catch(() => {});
       const opened = await tryShare([{ files: imageFiles }]);
       if (opened) {
         showToast('Klistra in rapporten som text i Signal');
@@ -888,13 +886,13 @@ function showSendPanel(report) {
 
     if (navigator.share) {
       // UTAN bilder: dela texten direkt — Signal fyller i den automatiskt.
-      const opened = await tryShare([{ text: signalText }]);
+      const opened = await tryShare([{ text }]);
       if (opened) return;
     }
 
     // Fallback — share saknas: kopiera till urklipp
     try {
-      await navigator.clipboard.writeText(signalText);
+      await navigator.clipboard.writeText(text);
       showToast('✓ Kopierat! Klistra in i Signal.');
     } catch {
       showToast('Kopiera texten ovan manuellt');
