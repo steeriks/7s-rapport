@@ -816,13 +816,16 @@ function showSendPanel(report) {
   const text = reportToText(report);
   document.getElementById('previewText').textContent = text;
 
-  // Bygger bildfilerna och GPX för navigator.share.
-  // Bilderna namnges <tidsnr>_<löpnr>.jpg.
-  // Returnerar { imageFiles, gpxFile }.
-  async function buildShareAssets(report) {
+  // iOS kräver att navigator.share() anropas direkt från ett knapptryck —
+  // utan mellanliggande async-operationer (t.ex. IndexedDB). Bilderna laddas
+  // därför i förväg när panelen öppnas, och lagras i _assets.
+  // Knapptrycket läser sedan _assets synkront och anropar share omedelbart.
+  let _assets = { imageFiles: [], gpxFile: null };
+
+  (async () => {
     const tidsnr = toTidsnummer(report.stund);
-    const imgs = await getImages(report.id).catch(() => []);
-    const imageFiles = imgs.map((img, i) => {
+    const imgs   = await getImages(report.id).catch(() => []);
+    _assets.imageFiles = imgs.map((img, i) => {
       const b64 = img.dataUrl.split(',')[1];
       const bin = atob(b64);
       const arr = new Uint8Array(bin.length);
@@ -831,12 +834,12 @@ function showSendPanel(report) {
       const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
       return new File([arr], `${tidsnr}_${i + 1}.${ext}`, { type: mime });
     });
-    const gpxFile = makeGpxFile(report);
-    return { imageFiles, gpxFile };
-  }
+    _assets.gpxFile = makeGpxFile(report);
+  })();
 
   // Försöker dela med navigator.share i fallande prioritetsordning.
   // Returnerar true om delningsmenyn öppnades (även vid användaravbrott).
+  // OBS: Inga macrotask-awaits får förekomma innan detta anropas från en klickhanterare.
   async function tryShare(candidates) {
     if (!navigator.share) return false;
     for (const c of candidates) {
@@ -864,7 +867,8 @@ function showSendPanel(report) {
   }
 
   document.getElementById('copySignalBtn').onclick = async () => {
-    const { imageFiles, gpxFile } = await buildShareAssets(report);
+    // Inga await-anrop innan tryShare — _assets är redan inläst
+    const { imageFiles, gpxFile } = _assets;
     const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
 
     const opened = await tryShare([
@@ -874,7 +878,6 @@ function showSendPanel(report) {
     ]);
 
     if (!opened) {
-      // navigator.share ej tillgänglig — kopiera text till urklipp
       try {
         await navigator.clipboard.writeText(text);
         showToast('✓ Kopierat! Klistra in i Signal.');
@@ -885,7 +888,7 @@ function showSendPanel(report) {
   };
 
   document.getElementById('shareBtn').onclick = async () => {
-    const { imageFiles, gpxFile } = await buildShareAssets(report);
+    const { imageFiles, gpxFile } = _assets;
     const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
 
     const opened = await tryShare([
@@ -907,7 +910,7 @@ function showSendPanel(report) {
   document.getElementById('sendEmailBtn').onclick = async () => {
     const s       = getSettings();
     const subject = `7S Rpt TNR: ${toTidsnummer(report.stund)}`;
-    const { imageFiles, gpxFile } = await buildShareAssets(report);
+    const { imageFiles, gpxFile } = _assets;
     const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
 
     const opened = await tryShare([
@@ -917,7 +920,6 @@ function showSendPanel(report) {
     ]);
 
     if (!opened) {
-      // Inget navigator.share — fallback till mailto:
       openMailto(s.centralEmail || '', subject, text);
     }
   };
