@@ -247,6 +247,19 @@ body {
   text-align: right;
 }
 
+.sent-badge {
+  display: block;
+  color: #c0392b;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.report-item--sent {
+  border-color: #e8cece;
+  background: #fdf8f8;
+}
+
 .report-item-detail {
   font-size: 13px;
   color: var(--text-muted);

@@ -34,6 +34,15 @@ function deleteReport(id) {
   deleteImages(id).catch(() => {});
 }
 
+function markReportSent(id) {
+  const reports = getReports();
+  const r = reports.find(x => x.id === id);
+  if (r && !r.sentAt) {
+    r.sentAt = new Date().toISOString();
+    saveReports(reports);
+  }
+}
+
 // ============================================================
 // INDEXEDDB — bildlagring
 // ============================================================
@@ -879,6 +888,7 @@ function showSendPanel(report) {
       navigator.clipboard.writeText(text).catch(() => {});
       const opened = await tryShare([{ files: imageFiles }]);
       if (opened) {
+        markReportSent(report.id);
         showToast('Klistra in rapporten som text i Signal');
         return;
       }
@@ -887,12 +897,13 @@ function showSendPanel(report) {
     if (navigator.share) {
       // UTAN bilder: dela texten direkt — Signal fyller i den automatiskt.
       const opened = await tryShare([{ text }]);
-      if (opened) return;
+      if (opened) { markReportSent(report.id); return; }
     }
 
     // Fallback — share saknas: kopiera till urklipp
     try {
       await navigator.clipboard.writeText(text);
+      markReportSent(report.id);
       showToast('✓ Kopierat! Klistra in i Signal.');
     } catch {
       showToast('Kopiera texten ovan manuellt');
@@ -909,9 +920,12 @@ function showSendPanel(report) {
       { text },
     ]);
 
-    if (!opened) {
+    if (opened) {
+      markReportSent(report.id);
+    } else {
       try {
         await navigator.clipboard.writeText(text);
+        markReportSent(report.id);
         showToast('✓ Kopierat till urklipp');
       } catch {
         showToast('Delning ej tillgänglig');
@@ -931,8 +945,11 @@ function showSendPanel(report) {
       { title: subject, text },
     ]);
 
-    if (!opened) {
+    if (opened) {
+      markReportSent(report.id);
+    } else {
       openMailto(s.centralEmail || '', subject, text);
+      markReportSent(report.id);
     }
   };
 
@@ -956,10 +973,11 @@ function renderReports() {
   }
 
   list.innerHTML = reports.map(r => `
-    <div class="report-item" data-id="${r.id}">
+    <div class="report-item${r.sentAt ? ' report-item--sent' : ''}" data-id="${r.id}">
       <div class="report-item-header">
         <div class="report-item-title">${escapeHtml(r.slag ? r.slag.substring(0, 40) : 'Rapport')}</div>
         <div class="report-item-time">
+          ${r.sentAt ? `<span class="sent-badge">Skickad TNR: ${toTidsnummer(r.stund)}</span>` : ''}
           <span class="tidsnr-small">${toTidsnummer(r.stund)}</span>
           <br>${escapeHtml(formatDateTime(r.stund))}
         </div>
@@ -1019,10 +1037,12 @@ function renderReports() {
 function initDailyBtn() {
   document.getElementById('sendDailyBtn').addEventListener('click', async () => {
     const today        = todayISO();
-    const todayReports = getReports().filter(r => r.created && r.created.startsWith(today));
+    const todayReports = getReports().filter(r =>
+      r.created && r.created.startsWith(today) && !r.sentAt
+    );
 
     if (todayReports.length === 0) {
-      showToast('Inga rapporter för idag');
+      showToast('Inga oskickade rapporter för idag');
       return;
     }
 
@@ -1031,6 +1051,10 @@ function initDailyBtn() {
     const s       = getSettings();
     const subject = `7S Dagsrapport ${today} — ${todayReports.length} rapporter — ${s.sagesman || ''}`;
     openMailto(s.centralEmail || '', subject, allText);
+
+    // Märk alla inkluderade rapporter som skickade
+    todayReports.forEach(r => markReportSent(r.id));
+    renderReports();
 
     // PDF genereras och laddas ned efteråt (kräver ej user gesture)
     try {
