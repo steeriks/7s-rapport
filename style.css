@@ -263,15 +263,56 @@ body {
   background: #f4f1e8;
   border: 1px solid #d4cdb0;
   border-radius: 8px;
-  padding: 14px;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 13px;
-  line-height: 1.6;
-  white-space: pre-wrap;
+  padding: 12px 14px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
   word-break: break-word;
   margin-bottom: 4px;
   color: var(--text);
 }
+
+/* Tvåkolumnstabell i förhandsgranskningen */
+.rpt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.rpt-label {
+  font-weight: 700;
+  color: var(--green-dark);
+  padding: 5px 10px 5px 0;
+  vertical-align: top;
+  white-space: nowrap;
+  width: 38%;
+  font-size: 13px;
+}
+
+.rpt-value {
+  padding: 5px 0;
+  vertical-align: top;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.rpt-table tr + tr .rpt-label,
+.rpt-table tr + tr .rpt-value {
+  border-top: 1px solid #e8e3d4;
+}
+
+.rpt-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 6px;
+}
+
+.rpt-value a {
+  color: var(--green-mid);
+  text-decoration: none;
+}
+
+.rpt-value a:active { opacity: 0.7; }
 
 /* ===== REPORTS LIST ===== */
 .section-header {

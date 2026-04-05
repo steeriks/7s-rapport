@@ -343,6 +343,38 @@ function reportToText(r) {
 }
 
 // ============================================================
+// REPORT → HTML  (förhandsgranskning i send-panelen)
+// Två kolumner: etikett | värde. Kartlänk är klickbar.
+// ============================================================
+function reportToHTML(r) {
+  const tidsnr = toTidsnummer(r.stund);
+  const stalleBase = r.stalleSystem && r.stalleSystem !== 'WGS84'
+    ? `[${r.stalleSystem}] ${escapeHtml(r.stalle || '–')}`
+    : escapeHtml(r.stalle || '–');
+  const mapLink = r.lat != null && r.lon != null
+    ? ` (<a href="https://maps.google.com/?q=${r.lat.toFixed(5)},${r.lon.toFixed(5)}" target="_blank">karta ↗</a>)`
+    : '';
+  const stalleFull = stalleBase + mapLink;
+
+  const fields = [
+    ['1. Stund',          `${escapeHtml(tidsnr)} <span class="rpt-sub">${escapeHtml(formatDateTime(r.stund))}</span>`],
+    ['2. Ställe',         stalleFull],
+    ['3. Styrka',         escapeHtml(r.styrka         || '–')],
+    ['4. Slag',           escapeHtml(r.slag           || '–')],
+    ['5. Sysselsättning', escapeHtml(r.sysselsattning || '–')],
+    ['6. Symbol',         escapeHtml(r.symbol         || '–')],
+    ['7. Sagesman',       escapeHtml(r.sagesman       || '–')],
+  ];
+  if (r.sedan) fields.push(['8. Sedan', escapeHtml(r.sedan)]);
+
+  const rows = fields.map(([label, value]) =>
+    `<tr><td class="rpt-label">${label}</td><td class="rpt-value">${value}</td></tr>`
+  ).join('');
+
+  return `<table class="rpt-table"><tbody>${rows}</tbody></table>`;
+}
+
+// ============================================================
 // PDF GENERATION
 // ============================================================
 async function generatePDF(reports) {
@@ -837,7 +869,7 @@ function showSendPanel(report) {
   panel.classList.remove('hidden');
 
   const text = reportToText(report);
-  document.getElementById('previewText').textContent = text;
+  document.getElementById('previewText').innerHTML = reportToHTML(report);
 
   // iOS kräver att navigator.share() anropas direkt från ett knapptryck —
   // utan mellanliggande async-operationer (t.ex. IndexedDB). Bilderna laddas
