@@ -27,7 +27,6 @@
   <!-- ===== TAB: NY RAPPORT ===== -->
   <section id="tab-form" class="tab-content active">
     <div class="card">
-      <h2>7S Rapport</h2>
       <form id="reportForm">
 
         <!-- 1. STUND -->
@@ -151,15 +150,25 @@
 
     <!-- SEND PANEL — visas efter att rapporten sparats -->
     <div id="sendPanel" class="card hidden">
-      <h3>Rapport sparad — skicka nu</h3>
-      <div id="previewText" class="preview-box"></div>
-      <div class="btn-group">
-        <button class="btn signal" id="copySignalBtn">📋 Text + bild → Signal</button>
-        <button class="btn share" id="shareBtn">📤 Dela</button>
-        <button class="btn email" id="sendEmailBtn">📧 Skicka som e-post</button>
-        <button class="btn pdf" id="downloadPdfBtn">⬇️ Ladda ner PDF</button>
+      <p class="send-panel-title">✓ Rapport sparad — skicka nu</p>
+
+      <!-- Primärknapp Signal -->
+      <button class="btn signal hero-btn" id="copySignalBtn">Signal</button>
+
+      <!-- Sekundära åtgärder -->
+      <div class="send-row">
+        <button class="btn share"  id="shareBtn">Dela</button>
+        <button class="btn email"  id="sendEmailBtn">E-post</button>
+        <button class="btn pdf"    id="downloadPdfBtn">PDF</button>
       </div>
+
       <button class="btn ghost" id="newReportBtn">+ Ny rapport</button>
+
+      <!-- Rapporttext — kollapsad som standard -->
+      <details class="preview-details">
+        <summary>Visa rapport</summary>
+        <div id="previewText" class="preview-box"></div>
+      </details>
     </div>
   </section>
 
