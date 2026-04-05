@@ -816,34 +816,65 @@ function showSendPanel(report) {
   const text = reportToText(report);
   document.getElementById('previewText').textContent = text;
 
-  // Bygger filer (bilder + GPX) för navigator.share.
-  // Returnerar en array — tom om inga filer finns eller canShare nekar.
-  async function buildShareFiles(report) {
+  // Bygger bildfilerna och GPX för navigator.share.
+  // Bilderna namnges <tidsnr>_<löpnr>.jpg.
+  // Returnerar { imageFiles, gpxFile }.
+  async function buildShareAssets(report) {
+    const tidsnr = toTidsnummer(report.stund);
     const imgs = await getImages(report.id).catch(() => []);
     const imageFiles = imgs.map((img, i) => {
       const b64 = img.dataUrl.split(',')[1];
       const bin = atob(b64);
       const arr = new Uint8Array(bin.length);
       for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
-      return new File([arr], img.name || `bild-${i + 1}.jpg`, { type: 'image/jpeg' });
+      const ext  = img.dataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
+      const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+      return new File([arr], `${tidsnr}_${i + 1}.${ext}`, { type: mime });
     });
     const gpxFile = makeGpxFile(report);
-    if (!navigator.canShare) return imageFiles; // kan inte kolla — skicka bilderna
-    const withGpx = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
-    if (withGpx.length > 0 && navigator.canShare({ files: withGpx })) return withGpx;
-    if (imageFiles.length > 0 && navigator.canShare({ files: imageFiles })) return imageFiles;
-    return [];
+    return { imageFiles, gpxFile };
+  }
+
+  // Försöker dela med navigator.share i fallande prioritetsordning.
+  // Returnerar true om delningsmenyn öppnades (även vid användaravbrott).
+  async function tryShare(candidates) {
+    if (!navigator.share) return false;
+    for (const c of candidates) {
+      const data = { title: c.title || '7S Rapport' };
+      if (c.text)  data.text  = c.text;
+      if (c.files && c.files.length > 0) {
+        if (navigator.canShare && !navigator.canShare({ files: c.files })) {
+          console.log('[7S share] canShare nekat:', c.files.map(f => f.name + ' ' + f.type).join(', '));
+          continue;
+        }
+        data.files = c.files;
+      }
+      try {
+        console.log('[7S share] försöker:', Object.keys(data).join(', '),
+          data.files ? '(' + data.files.map(f => f.name).join(', ') + ')' : '');
+        await navigator.share(data);
+        console.log('[7S share] lyckades');
+        return true;
+      } catch (err) {
+        if (err.name === 'AbortError') { console.log('[7S share] avbrutet av användare'); return true; }
+        console.warn('[7S share] misslyckades:', err.name, err.message, '— provar nästa');
+      }
+    }
+    return false;
   }
 
   document.getElementById('copySignalBtn').onclick = async () => {
-    const files = await buildShareFiles(report);
-    if (files.length > 0 && navigator.share) {
-      // Filer finns — öppna delar-menyn så Signal kan ta emot bilder/GPX
-      try {
-        await navigator.share({ title: '7S Rapport', text, files });
-      } catch { /* user cancelled */ }
-    } else {
-      // Inga filer — kopiera texten som vanligt
+    const { imageFiles, gpxFile } = await buildShareAssets(report);
+    const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
+
+    const opened = await tryShare([
+      { text, files: allFiles },      // text + bilder + GPX
+      { text, files: imageFiles },    // text + bilder (utan GPX om GPX nekas)
+      { text },                        // enbart text (om bilder nekas)
+    ]);
+
+    if (!opened) {
+      // navigator.share ej tillgänglig — kopiera text till urklipp
       try {
         await navigator.clipboard.writeText(text);
         showToast('✓ Kopierat! Klistra in i Signal.');
@@ -854,14 +885,16 @@ function showSendPanel(report) {
   };
 
   document.getElementById('shareBtn').onclick = async () => {
-    if (navigator.share) {
-      try {
-        const shareData = { title: '7S Rapport', text };
-        const files = await buildShareFiles(report);
-        if (files.length > 0) shareData.files = files;
-        await navigator.share(shareData);
-      } catch { /* user cancelled */ }
-    } else {
+    const { imageFiles, gpxFile } = await buildShareAssets(report);
+    const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
+
+    const opened = await tryShare([
+      { text, files: allFiles },
+      { text, files: imageFiles },
+      { text },
+    ]);
+
+    if (!opened) {
       try {
         await navigator.clipboard.writeText(text);
         showToast('✓ Kopierat till urklipp');
@@ -874,16 +907,17 @@ function showSendPanel(report) {
   document.getElementById('sendEmailBtn').onclick = async () => {
     const s       = getSettings();
     const subject = `7S Rpt TNR: ${toTidsnummer(report.stund)}`;
-    const files   = await buildShareFiles(report);
+    const { imageFiles, gpxFile } = await buildShareAssets(report);
+    const allFiles = [...imageFiles, ...(gpxFile ? [gpxFile] : [])];
 
-    if (files.length > 0 && navigator.share) {
-      // mailto: stöder inte bifogade filer. Öppna delar-menyn med filer —
-      // välj din e-postklient (Mail, Gmail m.fl.) för att bifoga bilderna.
-      try {
-        await navigator.share({ title: subject, text, files });
-      } catch { /* user cancelled */ }
-    } else {
-      // Inga filer — öppna e-postklienten direkt med förifylld mottagare
+    const opened = await tryShare([
+      { title: subject, text, files: allFiles },
+      { title: subject, text, files: imageFiles },
+      { title: subject, text },
+    ]);
+
+    if (!opened) {
+      // Inget navigator.share — fallback till mailto:
       openMailto(s.centralEmail || '', subject, text);
     }
   };
@@ -1148,6 +1182,49 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// ============================================================
+// DELA-DIAGNOSTIK  (anropa window._testShare() i webbläsarkonsolen)
+// ============================================================
+window._testShare = async function() {
+  const lines = [];
+  lines.push(`navigator.share:    ${'share'    in navigator ? 'finns' : 'SAKNAS'}`);
+  lines.push(`navigator.canShare: ${'canShare' in navigator ? 'finns' : 'SAKNAS'}`);
+  lines.push('');
+
+  if ('canShare' in navigator) {
+    const c = (label, data) => `${navigator.canShare(data) ? 'OK    ' : 'NEKAT '} ${label}`;
+    // Minimal giltig JPEG-header (8 bytes)
+    const jpgBytes = new Uint8Array([0xFF,0xD8,0xFF,0xE0,0x00,0x10,0x4A,0x46]);
+    const jpg = new File([jpgBytes],   'test.jpg', { type: 'image/jpeg' });
+    const txt = new File(['test'],     'test.txt', { type: 'text/plain' });
+    const gpx = new File(['<gpx/>'],   'test.gpx', { type: 'application/gpx+xml' });
+    lines.push(c('text (parameter)',   { text: 'test' }));
+    lines.push(c('[.jpg]',             { files: [jpg] }));
+    lines.push(c('[.txt]',             { files: [txt] }));
+    lines.push(c('[.jpg + .txt]',      { files: [jpg, txt] }));
+    lines.push(c('[.gpx]',             { files: [gpx] }));
+    lines.push(c('[.jpg + .gpx]',      { files: [jpg, gpx] }));
+    lines.push(c('[.jpg + .txt + .gpx]',{ files: [jpg, txt, gpx] }));
+    lines.push(c('text + [.jpg]',      { text: 'test', files: [jpg] }));
+    lines.push(c('text + [.jpg+.txt]', { text: 'test', files: [jpg, txt] }));
+  }
+
+  const reports = getReports();
+  lines.push('');
+  lines.push(`Sparade rapporter: ${reports.length}`);
+  if (reports.length > 0) {
+    const r = reports[0];
+    const imgs = await getImages(r.id).catch(() => []);
+    lines.push(`Senaste rapport: ${toTidsnummer(r.stund)}`);
+    lines.push(`  Bilder i IDB: ${imgs.length}`);
+    lines.push(`  Koordinater:  ${r.lat != null ? r.lat + ', ' + r.lon : 'saknas'}`);
+  }
+
+  const msg = lines.join('\n');
+  console.log('[7S Dela-diagnostik]\n' + msg);
+  showModal('Dela-diagnostik', msg);
+};
 
 // ============================================================
 // SERVICE WORKER
