@@ -290,6 +290,16 @@ function toTidsnummer(datetimeLocalValue) {
   return `${day}${hh}${mm}`;                 // "042115"
 }
 
+// Konverterar ISO-tidsstämpel (sentAt) till tidsnummer i lokal tid
+function isoToTidsnummer(isoStr) {
+  if (!isoStr) return '––––––';
+  const d = new Date(isoStr);
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh  = String(d.getHours()).padStart(2, '0');
+  const mm  = String(d.getMinutes()).padStart(2, '0');
+  return `${day}${hh}${mm}`;
+}
+
 // Human-readable fallback for PDF/headings
 function formatDateTime(datetimeLocalValue) {
   if (!datetimeLocalValue) return '–';
@@ -976,7 +986,7 @@ function renderReports() {
       <div class="report-item-header">
         <div class="report-item-title">${escapeHtml(r.slag ? r.slag.substring(0, 40) : 'Rapport')}</div>
         <div class="report-item-time">
-          ${r.sentAt ? `<span class="sent-badge">Skickad TNR: ${toTidsnummer(r.stund)}</span>` : ''}
+          ${r.sentAt ? `<span class="sent-badge">Skickad TNR: ${isoToTidsnummer(r.sentAt)}</span>` : ''}
           <span class="tidsnr-small">${toTidsnummer(r.stund)}</span>
           <br>${escapeHtml(formatDateTime(r.stund))}
         </div>
