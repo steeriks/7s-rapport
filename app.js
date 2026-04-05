@@ -1026,14 +1026,19 @@ function initDailyBtn() {
       return;
     }
 
-    const doc      = await generatePDF(todayReports);
-    const filename = `7S-dagsrapport-${today}.pdf`;
-    downloadPDF(doc, filename);
-
+    // Öppna e-postklienten INNAN await — iOS blockerar mailto: efter async-operationer
     const allText = todayReports.map(reportToText).join('\n\n');
     const s       = getSettings();
     const subject = `7S Dagsrapport ${today} — ${todayReports.length} rapporter — ${s.sagesman || ''}`;
     openMailto(s.centralEmail || '', subject, allText);
+
+    // PDF genereras och laddas ned efteråt (kräver ej user gesture)
+    try {
+      const doc = await generatePDF(todayReports);
+      downloadPDF(doc, `7S-dagsrapport-${today}.pdf`);
+    } catch (err) {
+      console.warn('PDF-generering misslyckades:', err);
+    }
   });
 }
 
