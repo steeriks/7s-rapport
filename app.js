@@ -867,7 +867,7 @@ function showSendPanel(report) {
   }
 
   document.getElementById('copySignalBtn').onclick = async () => {
-    const { imageFiles } = _assets;
+    const { imageFiles, gpxFile } = _assets;
 
     if (navigator.share && (imageFiles.length > 0 || gpxFile)) {
       // MED filer: Signal ignorerar text-parametern när filer skickas.
