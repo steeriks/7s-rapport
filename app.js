@@ -326,19 +326,15 @@ function reportToText(r) {
   const stalleFull = stalleBase + mapLink;
 
   const lines = [
-    '═══════════════════════════',
-    '       7S RAPPORT',
-    '═══════════════════════════',
-    `1. Stund:          ${tidsnr}`,
-    `2. Ställe:         ${stalleFull}`,
-    `3. Styrka:         ${r.styrka || '–'}`,
-    `4. Slag:           ${r.slag || '–'}`,
+    `1. Stund: ${tidsnr}`,
+    `2. Ställe: ${stalleFull}`,
+    `3. Styrka: ${r.styrka || '–'}`,
+    `4. Slag: ${r.slag || '–'}`,
     `5. Sysselsättning: ${r.sysselsattning || '–'}`,
-    `6. Symbol:         ${r.symbol || '–'}`,
-    `7. Sagesman:       ${r.sagesman || '–'}`,
+    `6. Symbol: ${r.symbol || '–'}`,
+    `7. Sagesman: ${r.sagesman || '–'}`,
   ];
-  if (r.sedan) lines.push(`8. Sedan:          ${r.sedan}`);
-  lines.push('═══════════════════════════');
+  if (r.sedan) lines.push(`8. Sedan: ${r.sedan}`);
   return lines.join('\n');
 }
 
