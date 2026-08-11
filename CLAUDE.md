@@ -55,3 +55,7 @@ localStorage['reports']  = [ { id, stund, stalle, stalleSystem, styrka, slag,
 ## Adding a new asset
 
 If a new file is added (e.g. a second JS file), it must be added to the `ASSETS` array in `sw.js` or it won't be cached for offline use.
+
+## Icons
+
+`generate-icons.py` regenerates `icon-192.png` and `icon-512.png` from SVG. Run it with Python 3 if the app icon needs updating.
